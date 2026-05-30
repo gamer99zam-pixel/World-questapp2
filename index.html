@@ -1,0 +1,2710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#7c3aed" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="WordQuest" />
+  <meta name="description" content="An exciting word search puzzle game with multiple worlds and challenges!" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="WordQuest - Word Search Game" />
+  <meta property="og:description" content="Challenge yourself with word search puzzles across 10 amazing worlds!" />
+  <meta property="og:type" content="website" />
+
+  <title>WordQuest</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Apple Touch Icons -->
+  <link rel="apple-touch-icon" href="icons/icon-192.svg" />
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.svg" />
+  <link rel="apple-touch-icon" sizes="144x144" href="icons/icon-144.svg" />
+  <link rel="apple-touch-icon" sizes="128x128" href="icons/icon-128.svg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.svg" />
+
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet" />
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #0f0f1a;
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    input, textarea { -webkit-user-select: text; user-select: text; }
+    #root { min-height: 100vh; min-height: 100dvh; overflow-y: auto; }
+
+    /* PWA install banner */
+    #install-banner {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(135deg, #7c3aed, #db2777);
+      color: white;
+      padding: 16px 20px;
+      z-index: 99999;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+      border-radius: 20px 20px 0 0;
+    }
+    #install-banner.show { display: flex; }
+    #install-banner h3 { font-size: 16px; font-weight: 800; margin: 0; }
+    #install-banner p  { font-size: 13px; opacity: 0.9; margin: 0; text-align: center; }
+    #install-banner .banner-btns { display: flex; gap: 10px; width: 100%; }
+    #install-banner button {
+      flex: 1; padding: 10px; border-radius: 10px; border: none;
+      font-weight: 700; font-size: 14px; cursor: pointer;
+    }
+    #install-banner .btn-install { background: white; color: #7c3aed; }
+    #install-banner .btn-dismiss { background: rgba(255,255,255,0.2); color: white; }
+  </style>
+</head>
+<body>
+
+  <!-- PWA Install Banner -->
+  <div id="install-banner">
+    <div style="font-size:32px">👑</div>
+    <h3>Install WordQuest!</h3>
+    <p>Add to your home screen for the best experience — play offline anytime!</p>
+    <div class="banner-btns">
+      <button class="btn-install" id="install-btn">📲 Install App</button>
+      <button class="btn-dismiss" id="dismiss-btn">Not now</button>
+    </div>
+  </div>
+
+  <div id="root"></div>
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
+          .catch(err => console.log('[PWA] SW registration failed:', err));
+      });
+    }
+
+    // PWA Install prompt
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      // Show banner after 5 seconds if not already installed
+      setTimeout(() => {
+        if (deferredPrompt) {
+          document.getElementById('install-banner').classList.add('show');
+        }
+      }, 5000);
+    });
+
+    document.getElementById('install-btn').addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log('[PWA] Install outcome:', outcome);
+      deferredPrompt = null;
+      document.getElementById('install-banner').classList.remove('show');
+    });
+
+    document.getElementById('dismiss-btn').addEventListener('click', () => {
+      document.getElementById('install-banner').classList.remove('show');
+      localStorage.setItem('pwa_banner_dismissed', 'true');
+    });
+
+    // Don't show if already dismissed
+    if (localStorage.getItem('pwa_banner_dismissed')) {
+      document.getElementById('install-banner').style.display = 'none';
+    }
+
+    // Hide banner if already installed
+    window.addEventListener('appinstalled', () => {
+      document.getElementById('install-banner').classList.remove('show');
+      console.log('[PWA] App installed!');
+    });
+  </script>
+
+  <!-- Game -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+
+// ═══════════════════════════════════════════════════════════════
+//  LEADERBOARD SYSTEM
+// ═══════════════════════════════════════════════════════════════
+
+const LEADERBOARD_KEY = 'wordquest_leaderboard';
+const CURRENT_PLAYER_KEY = 'wordquest_current_player';
+
+// Load leaderboard from localStorage
+function loadLeaderboard() {
+  try {
+    const data = localStorage.getItem(LEADERBOARD_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch(e) { return []; }
+}
+
+// Save leaderboard to localStorage
+function saveLeaderboard(lb) {
+  try { localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(lb)); } catch(e){}
+}
+
+// Add or update player score
+function updatePlayerScore(name, score, wordsFound, levelsCompleted) {
+  const lb = loadLeaderboard();
+  const existing = lb.find(p => p.name.toLowerCase() === name.toLowerCase());
+  if (existing) {
+    existing.score = Math.max(existing.score, score);
+    existing.wordsFound = Math.max(existing.wordsFound, wordsFound);
+    existing.levelsCompleted = Math.max(existing.levelsCompleted, levelsCompleted);
+    existing.lastPlayed = new Date().toISOString();
+    existing.gamesPlayed = (existing.gamesPlayed || 1) + 1;
+  } else {
+    lb.push({
+      name,
+      score,
+      wordsFound,
+      levelsCompleted,
+      gamesPlayed: 1,
+      joinedAt: new Date().toISOString(),
+      lastPlayed: new Date().toISOString(),
+    });
+  }
+  // Sort by score descending
+  lb.sort((a, b) => b.score - a.score);
+  saveLeaderboard(lb);
+  return lb;
+}
+
+// Register new player (called on first entry)
+function registerPlayer(name) {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  localStorage.setItem(CURRENT_PLAYER_KEY, trimmed);
+  const lb = loadLeaderboard();
+  if (!lb.find(p => p.name.toLowerCase() === trimmed.toLowerCase())) {
+    lb.push({
+      name: trimmed,
+      score: 0,
+      wordsFound: 0,
+      levelsCompleted: 0,
+      gamesPlayed: 0,
+      joinedAt: new Date().toISOString(),
+      lastPlayed: new Date().toISOString(),
+    });
+    saveLeaderboard(lb);
+  }
+  return trimmed;
+}
+
+// Get current player name
+function getCurrentPlayer() {
+  return localStorage.getItem(CURRENT_PLAYER_KEY) || null;
+}
+
+// ── Player Name Entry Screen ───────────────────────────────────
+function PlayerNameScreen({ onEnter }) {
+  const [name, setName] = React.useState('');
+  const [err, setErr] = React.useState('');
+  const inputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    setTimeout(() => inputRef.current && inputRef.current.focus(), 300);
+  }, []);
+
+  function handleSubmit() {
+    const trimmed = name.trim();
+    if (!trimmed) { setErr('Please enter your name!'); return; }
+    if (trimmed.length < 2) { setErr('Name must be at least 2 characters.'); return; }
+    if (trimmed.length > 20) { setErr('Name too long (max 20 chars).'); return; }
+    const player = registerPlayer(trimmed);
+    if (player) onEnter(player);
+  }
+
+  return (
+    <div style={{
+      minHeight:'100vh', background:'linear-gradient(135deg,#0f0f1a 0%,#1a0b2e 50%,#0f0f1a 100%)',
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+      padding:'24px', fontFamily:'system-ui,sans-serif'
+    }}>
+      {/* Stars background */}
+      <div style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
+        {[...Array(30)].map((_,i)=>(
+          <div key={i} style={{
+            position:'absolute', borderRadius:'50%', background:'white',
+            width: Math.random()*3+1+'px', height: Math.random()*3+1+'px',
+            left: Math.random()*100+'%', top: Math.random()*100+'%',
+            opacity: Math.random()*0.6+0.2,
+            animation: `twinkle ${Math.random()*3+2}s ease-in-out infinite alternate`
+          }}/>
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes twinkle { from{opacity:0.2} to{opacity:0.9} }
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+        @keyframes glow { 0%,100%{text-shadow:0 0 20px #a855f7} 50%{text-shadow:0 0 40px #ec4899,0 0 60px #a855f7} }
+        .name-input:focus { outline:none; border-color:#a855f7 !important; box-shadow:0 0 0 3px rgba(168,85,247,0.3); }
+        .enter-btn:hover { transform:scale(1.05); background:linear-gradient(135deg,#9333ea,#ec4899) !important; }
+        .enter-btn:active { transform:scale(0.97); }
+      `}</style>
+
+      <div style={{position:'relative',zIndex:1,width:'100%',maxWidth:'400px',textAlign:'center'}}>
+        {/* Crown + Title */}
+        <div style={{fontSize:'72px',animation:'float 3s ease-in-out infinite',marginBottom:'8px'}}>👑</div>
+        <h1 style={{
+          fontSize:'36px',fontWeight:'900',marginBottom:'4px',
+          background:'linear-gradient(135deg,#fff,#a855f7,#ec4899)',
+          WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',
+          animation:'glow 2s ease-in-out infinite'
+        }}>WORDQUEST</h1>
+        <p style={{color:'#9ca3af',fontSize:'14px',marginBottom:'40px'}}>Enter your name to join the adventure!</p>
+
+        {/* Name Input Card */}
+        <div style={{
+          background:'rgba(255,255,255,0.05)', backdropFilter:'blur(20px)',
+          border:'1px solid rgba(168,85,247,0.3)', borderRadius:'24px',
+          padding:'32px', marginBottom:'16px'
+        }}>
+          <label style={{color:'#d1d5db',fontSize:'14px',fontWeight:'600',display:'block',marginBottom:'12px',textAlign:'left'}}>
+            ⚔️ Your Name, Hero
+          </label>
+          <input
+            ref={inputRef}
+            className="name-input"
+            type="text"
+            value={name}
+            onChange={e => { setName(e.target.value); setErr(''); }}
+            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+            placeholder="e.g. Ahmed, Sara..."
+            maxLength={20}
+            style={{
+              width:'100%', padding:'14px 18px', fontSize:'18px', fontWeight:'700',
+              background:'rgba(255,255,255,0.08)', color:'white',
+              border:'2px solid rgba(168,85,247,0.4)', borderRadius:'14px',
+              marginBottom:'8px', transition:'all 0.3s'
+            }}
+          />
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:'20px'}}>
+            <span style={{color:err?'#f87171':'transparent',fontSize:'13px'}}>{err || '.'}</span>
+            <span style={{color:'#6b7280',fontSize:'12px'}}>{name.length}/20</span>
+          </div>
+          <button
+            className="enter-btn"
+            onClick={handleSubmit}
+            style={{
+              width:'100%', padding:'16px', fontSize:'18px', fontWeight:'800',
+              background:'linear-gradient(135deg,#7c3aed,#db2777)', color:'white',
+              border:'none', borderRadius:'14px', cursor:'pointer',
+              transition:'all 0.2s', letterSpacing:'1px'
+            }}
+          >
+            🚀 START QUEST
+          </button>
+        </div>
+
+        <p style={{color:'#6b7280',fontSize:'12px'}}>Your progress is saved automatically on this device</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Leaderboard Screen ─────────────────────────────────────────
+function LeaderboardScreen({ currentPlayer, onClose }) {
+  const [lb, setLb] = React.useState(loadLeaderboard());
+  const [tab, setTab] = React.useState('top');
+
+  const medals = ['🥇','🥈','🥉'];
+  const topPlayers = lb.slice(0, 50);
+  const myRank = lb.findIndex(p => p.name.toLowerCase() === currentPlayer?.toLowerCase()) + 1;
+  const myData = lb.find(p => p.name.toLowerCase() === currentPlayer?.toLowerCase());
+
+  return (
+    <div style={{
+      minHeight:'100vh', background:'linear-gradient(135deg,#0f0f1a,#1a0b2e)',
+      fontFamily:'system-ui,sans-serif', color:'white'
+    }}>
+      <style>{`
+        .lb-row:hover { background:rgba(168,85,247,0.1) !important; }
+        .tab-btn { transition:all 0.2s; }
+        .tab-btn:hover { opacity:0.9; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{
+        background:'linear-gradient(135deg,rgba(124,58,237,0.4),rgba(219,39,119,0.4))',
+        padding:'20px 16px 16px', borderBottom:'1px solid rgba(255,255,255,0.1)'
+      }}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:'500px',margin:'0 auto'}}>
+          <button onClick={onClose} style={{
+            background:'rgba(255,255,255,0.1)', border:'none', color:'white',
+            borderRadius:'12px', padding:'8px 14px', cursor:'pointer', fontSize:'14px'
+          }}>← Back</button>
+          <h2 style={{fontSize:'22px',fontWeight:'800',margin:0}}>🏆 Leaderboard</h2>
+          <div style={{width:'70px'}}/>
+        </div>
+      </div>
+
+      <div style={{maxWidth:'500px',margin:'0 auto',padding:'16px'}}>
+
+        {/* My Rank Card */}
+        {myData && (
+          <div style={{
+            background:'linear-gradient(135deg,rgba(124,58,237,0.3),rgba(219,39,119,0.3))',
+            border:'2px solid rgba(168,85,247,0.5)', borderRadius:'20px',
+            padding:'16px', marginBottom:'20px'
+          }}>
+            <div style={{fontSize:'12px',color:'#a78bfa',fontWeight:'700',marginBottom:'8px'}}>YOUR STATS</div>
+            <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+              <div style={{
+                width:'48px',height:'48px',borderRadius:'50%',
+                background:'linear-gradient(135deg,#7c3aed,#ec4899)',
+                display:'flex',alignItems:'center',justifyContent:'center',
+                fontSize:'20px',fontWeight:'800'
+              }}>{myRank <= 3 ? medals[myRank-1] : `#${myRank}`}</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:'800',fontSize:'18px'}}>{myData.name}</div>
+                <div style={{color:'#9ca3af',fontSize:'13px'}}>
+                  Rank #{myRank} · {myData.gamesPlayed} games played
+                </div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:'22px',fontWeight:'900',color:'#fbbf24'}}>{myData.score.toLocaleString()}</div>
+                <div style={{color:'#9ca3af',fontSize:'12px'}}>points</div>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:'12px',marginTop:'12px'}}>
+              <div style={{flex:1,background:'rgba(0,0,0,0.3)',borderRadius:'10px',padding:'8px',textAlign:'center'}}>
+                <div style={{fontSize:'18px',fontWeight:'800',color:'#34d399'}}>{myData.wordsFound}</div>
+                <div style={{fontSize:'11px',color:'#9ca3af'}}>Words Found</div>
+              </div>
+              <div style={{flex:1,background:'rgba(0,0,0,0.3)',borderRadius:'10px',padding:'8px',textAlign:'center'}}>
+                <div style={{fontSize:'18px',fontWeight:'800',color:'#60a5fa'}}>{myData.levelsCompleted}</div>
+                <div style={{fontSize:'11px',color:'#9ca3af'}}>Levels Done</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Players List */}
+        <div style={{background:'rgba(255,255,255,0.04)',borderRadius:'20px',overflow:'hidden',border:'1px solid rgba(255,255,255,0.08)'}}>
+          <div style={{padding:'12px 16px',borderBottom:'1px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span style={{fontWeight:'700',fontSize:'15px'}}>🌟 Top Players</span>
+            <span style={{color:'#9ca3af',fontSize:'13px'}}>{lb.length} players</span>
+          </div>
+
+          {topPlayers.length === 0 ? (
+            <div style={{padding:'40px',textAlign:'center',color:'#6b7280'}}>
+              <div style={{fontSize:'40px',marginBottom:'8px'}}>🎮</div>
+              <div>No players yet. Be the first!</div>
+            </div>
+          ) : topPlayers.map((player, i) => {
+            const isMe = player.name.toLowerCase() === currentPlayer?.toLowerCase();
+            return (
+              <div key={i} className="lb-row" style={{
+                display:'flex', alignItems:'center', gap:'12px',
+                padding:'14px 16px',
+                borderBottom: i < topPlayers.length-1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                background: isMe ? 'rgba(168,85,247,0.15)' : 'transparent',
+                transition:'background 0.2s'
+              }}>
+                {/* Rank */}
+                <div style={{
+                  width:'36px', height:'36px', borderRadius:'50%', flexShrink:0,
+                  background: i < 3
+                    ? ['linear-gradient(135deg,#fbbf24,#f59e0b)','linear-gradient(135deg,#9ca3af,#6b7280)','linear-gradient(135deg,#d97706,#92400e)'][i]
+                    : 'rgba(255,255,255,0.08)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  fontSize: i < 3 ? '18px' : '14px', fontWeight:'800',
+                  color: i < 3 ? 'white' : '#9ca3af'
+                }}>
+                  {i < 3 ? medals[i] : i+1}
+                </div>
+                {/* Name */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{
+                    fontWeight: isMe ? '800' : '600',
+                    fontSize:'15px',
+                    color: isMe ? '#c084fc' : 'white',
+                    display:'flex',alignItems:'center',gap:'6px'
+                  }}>
+                    {player.name}
+                    {isMe && <span style={{fontSize:'11px',background:'rgba(168,85,247,0.3)',padding:'2px 6px',borderRadius:'6px',color:'#c084fc'}}>YOU</span>}
+                  </div>
+                  <div style={{color:'#6b7280',fontSize:'12px'}}>
+                    {player.wordsFound} words · {player.levelsCompleted} levels · {player.gamesPlayed} games
+                  </div>
+                </div>
+                {/* Score */}
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <div style={{
+                    fontSize:'17px',fontWeight:'900',
+                    color: i === 0 ? '#fbbf24' : i === 1 ? '#9ca3af' : i === 2 ? '#d97706' : '#e2e8f0'
+                  }}>{player.score.toLocaleString()}</div>
+                  <div style={{color:'#6b7280',fontSize:'11px'}}>pts</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <p style={{textAlign:'center',color:'#6b7280',fontSize:'12px',marginTop:'16px',padding:'0 16px'}}>
+          🔒 Leaderboard is stored locally on this device
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── WORLDS (from PDF) ────────────────────────────────────────────────────────
+
+const CHAPTERS = [
+  { id:1,  name:"Food",        emoji:"🍎", color:"#ea580c", bg:"#431407", accent:"#fb923c" },
+  { id:2,  name:"Animals",     emoji:"🐾", color:"#16a34a", bg:"#052e16", accent:"#4ade80" },
+  { id:3,  name:"Space",       emoji:"🚀", color:"#7c3aed", bg:"#2e1065", accent:"#a78bfa" },
+  { id:4,  name:"Countries",   emoji:"🌍", color:"#2563eb", bg:"#1e1b4b", accent:"#60a5fa" },
+  { id:5,  name:"Sports",      emoji:"⚽", color:"#dc2626", bg:"#450a0a", accent:"#f87171" },
+  { id:6,  name:"Technology",  emoji:"💻", color:"#0891b2", bg:"#083344", accent:"#22d3ee" },
+  { id:7,  name:"Weather",     emoji:"⛅", color:"#0284c7", bg:"#0c1a2e", accent:"#7dd3fc" },
+  { id:8,  name:"Things",      emoji:"🪑", color:"#78716c", bg:"#1c1917", accent:"#d6d3d1" },
+  { id:9,  name:"Science",     emoji:"🔬", color:"#059669", bg:"#022c22", accent:"#6ee7b7" },
+  { id:10, name:"History",     emoji:"⚔️", color:"#b45309", bg:"#1c0a00", accent:"#fcd34d" },
+];
+
+// ─── PREDEFINED LEVELS — exact words from PDF ────────────────────────────────
+// Grid size = max(longest word length + 2, min needed). Boss = Level 11 words.
+// buildPuzzle handles words longer than grid by using cap=gridSize (horizontal always fits).
+
+function autoGrid(words) {
+  const maxLen = Math.max(...words.map(w=>w.length));
+  // Grid must be strictly larger than longest word so diagonals work too
+  const n = maxLen + 3;
+  return Math.max(n, 5); // minimum 5×5
+}
+
+const PREDEFINED = {
+  // ── World 1: FOOD ────────────────────────────────────────────────────────────
+  1: [
+    { words:["APPLE","BREAD"],                                      time:90, difficulty:"easy"   },
+    { words:["MILK","RICE"],                                        time:90, difficulty:"easy"   },
+    { words:["CHEESE","BUTTER","HONEY"],                            time:85, difficulty:"easy"   },
+    { words:["SUGAR","SALAD","PIZZA"],                              time:80, difficulty:"easy"   },
+    { words:["BURGER","PASTA","STEAK"],                             time:75, difficulty:"medium" },
+    { words:["SOUP","NOODLES","PANCAKE","WAFFLE"],                  time:70, difficulty:"medium" },
+    { words:["CHOCOLATE","BISCUIT","SANDWICH","ORANGE"],            time:65, difficulty:"medium" },
+    { words:["BANANA","GRAPES","STRAWBERRY","WATERMELON"],          time:60, difficulty:"hard"   },
+    { words:["PEACH","MANGO","TOMATO","POTATO"],                    time:55, difficulty:"hard"   },
+    { words:["CARROT","ONION","GARLIC","PEPPER"],                   time:50, difficulty:"hard"   },
+    { words:["SPINACH","BROCCOLI","CABBAGE","CORN","BEANS"],        time:45, difficulty:"expert", isBoss:true },
+  ],
+  // ── World 2: ANIMALS ─────────────────────────────────────────────────────────
+  2: [
+    { words:["CAT","DOG"],                                          time:90, difficulty:"easy"   },
+    { words:["COW","LION"],                                         time:90, difficulty:"easy"   },
+    { words:["TIGER","BEAR","WOLF"],                                time:85, difficulty:"easy"   },
+    { words:["FOX","MONKEY","ZEBRA"],                               time:80, difficulty:"easy"   },
+    { words:["GIRAFFE","ELEPHANT","KANGAROO"],                      time:75, difficulty:"medium" },
+    { words:["PANDA","LEOPARD","CHEETAH","HYENA"],                  time:70, difficulty:"medium" },
+    { words:["HORSE","DONKEY","GOAT","SHEEP"],                      time:65, difficulty:"medium" },
+    { words:["DEER","CAMEL","RABBIT","SQUIRREL"],                   time:60, difficulty:"hard"   },
+    { words:["MOUSE","RAT","BAT","EAGLE"],                          time:55, difficulty:"hard"   },
+    { words:["HAWK","OWL","PARROT","PENGUIN"],                      time:50, difficulty:"hard"   },
+    { words:["SHARK","WHALE","DOLPHIN","OCTOPUS","CROCODILE"],      time:45, difficulty:"expert", isBoss:true },
+  ],
+  // ── World 3: SPACE ───────────────────────────────────────────────────────────
+  3: [
+    { words:["SUN","MOON"],                                         time:90, difficulty:"easy"   },
+    { words:["STAR","SKY"],                                         time:90, difficulty:"easy"   },
+    { words:["ORBIT","PLANET","COMET"],                             time:85, difficulty:"easy"   },
+    { words:["METEOR","GALAXY","ASTEROID"],                         time:80, difficulty:"easy"   },
+    { words:["ROCKET","SATELLITE","TELESCOPE"],                     time:75, difficulty:"medium" },
+    { words:["COSMOS","NEBULA","GRAVITY","ALIEN"],                  time:70, difficulty:"medium" },
+    { words:["SPACESHIP","ASTRONAUT","ECLIPSE","LIGHTYEAR"],        time:65, difficulty:"medium" },
+    { words:["UNIVERSE","BLACKHOLE","SOLAR","SYSTEM"],              time:60, difficulty:"hard"   },
+    { words:["MARS","VENUS","EARTH","JUPITER"],                     time:55, difficulty:"hard"   },
+    { words:["SATURN","URANUS","NEPTUNE","PLUTO"],                  time:50, difficulty:"hard"   },
+    { words:["DUST","RADIATION","VOID","INFINITY","QUASAR"],        time:45, difficulty:"expert", isBoss:true },
+  ],
+  // ── World 4: COUNTRIES ───────────────────────────────────────────────────────
+  4: [
+    { words:["USA","SPAIN"],                                        time:90, difficulty:"easy"   },
+    { words:["EGYPT","INDIA"],                                      time:90, difficulty:"easy"   },
+    { words:["CHINA","BRAZIL","FRANCE"],                            time:85, difficulty:"easy"   },
+    { words:["ITALY","GERMANY","CANADA"],                           time:80, difficulty:"easy"   },
+    { words:["MEXICO","ARGENTINA","NORWAY"],                        time:75, difficulty:"medium" },
+    { words:["SWEDEN","FINLAND","DENMARK","POLAND"],                time:70, difficulty:"medium" },
+    { words:["TURKEY","IRAN","IRAQ","JAPAN"],                       time:65, difficulty:"medium" },
+    { words:["KOREA","THAILAND","VIETNAM","PERU"],                  time:60, difficulty:"hard"   },
+    { words:["CHILE","COLOMBIA","MOROCCO","ALGERIA"],               time:55, difficulty:"hard"   },
+    { words:["KENYA","NIGERIA","AUSTRALIA","NEWZEALAND"],           time:50, difficulty:"hard"   },
+    { words:["GREECE","PORTUGAL","BELGIUM","NETHERLANDS","SWITZERLAND"], time:45, difficulty:"expert", isBoss:true },
+  ],
+  // ── World 5: SPORTS ──────────────────────────────────────────────────────────
+  5: [
+    { words:["RUN","GYM"],                                          time:90, difficulty:"easy"   },
+    { words:["GOLF","SWIM"],                                        time:90, difficulty:"easy"   },
+    { words:["BOX","BIKE","TENNIS"],                                time:85, difficulty:"easy"   },
+    { words:["SOCCER","CRICKET","HANDBALL"],                        time:80, difficulty:"easy"   },
+    { words:["RUGBY","BASEBALL","HOCKEY"],                          time:75, difficulty:"medium" },
+    { words:["SKATE","SURF","CLIMB","ROWING"],                      time:70, difficulty:"medium" },
+    { words:["DIVING","SKIING","KARATE","JUDO"],                    time:65, difficulty:"medium" },
+    { words:["BOXING","FENCING","ARCHERY","WRESTLING"],             time:60, difficulty:"hard"   },
+    { words:["CYCLING","BADMINTON","VOLLEYBALL","BASKETBALL"],      time:55, difficulty:"hard"   },
+    { words:["TRIATHLON","MARATHON","SPRINT","HURDLES"],            time:50, difficulty:"hard"   },
+    { words:["POLEVAULT","SHOTPUT","DISCUS","WEIGHTLIFTING","SNOWBOARD"], time:45, difficulty:"expert", isBoss:true },
+  ],
+  // ── World 6: TECHNOLOGY ──────────────────────────────────────────────────────
+  6: [
+    { words:["APP","WEB"],                                          time:90, difficulty:"easy"   },
+    { words:["CODE","DATA"],                                        time:90, difficulty:"easy"   },
+    { words:["FILE","SERVER","CLOUD"],                              time:85, difficulty:"easy"   },
+    { words:["PYTHON","JAVA","SCRIPT"],                             time:80, difficulty:"easy"   },
+    { words:["PROGRAM","SOFTWARE","HARDWARE"],                      time:75, difficulty:"medium" },
+    { words:["NETWORK","DATABASE","SECURITY","ENCRYPTION"],         time:70, difficulty:"medium" },
+    { words:["ALGORITHM","AI","ROBOT","AUTOMATION"],                time:65, difficulty:"medium" },
+    { words:["PROCESSOR","MEMORY","STORAGE","BROWSER"],             time:60, difficulty:"hard"   },
+    { words:["ENGINE","SYSTEM","DEBUG","COMPILE"],                  time:55, difficulty:"hard"   },
+    { words:["UPLOAD","DOWNLOAD","INTERFACE","DESIGN"],             time:50, difficulty:"hard"   },
+    { words:["UX","UI","BACKEND","FRONTEND","API"],                 time:45, difficulty:"expert", isBoss:true },
+  ],
+  // ── World 7: WEATHER ─────────────────────────────────────────────────────────
+  7: [
+    { words:["SUN","RAIN"],                                         time:90, difficulty:"easy"   },
+    { words:["WIND","SNOW"],                                        time:90, difficulty:"easy"   },
+    { words:["FOG","CLOUD","STORM"],                                time:85, difficulty:"easy"   },
+    { words:["THUNDER","LIGHTNING","HURRICANE"],                    time:80, difficulty:"easy"   },
+    { words:["TORNADO","DRIZZLE","BREEZE"],                         time:75, difficulty:"medium" },
+    { words:["HEAT","COLD","FREEZE","CLIMATE"],                     time:70, difficulty:"medium" },
+    { words:["TEMPERATURE","PRESSURE","HUMIDITY","FORECAST"],       time:65, difficulty:"medium" },
+    { words:["SEASON","SPRING","SUMMER","AUTUMN"],                  time:60, difficulty:"hard"   },
+    { words:["WINTER","RAINBOW","DROPLET","ICE"],                   time:55, difficulty:"hard"   },
+    { words:["MIST","FROST","GALE","BLIZZARD"],                     time:50, difficulty:"hard"   },
+    { words:["MONSOON","CYCLONE","DUST","SKYLINE","SUNSHINE"],      time:45, difficulty:"expert", isBoss:true },
+  ],
+  // ── World 8: THINGS ──────────────────────────────────────────────────────────
+  8: [
+    { words:["PEN","CUP"],                                          time:90, difficulty:"easy"   },
+    { words:["BOOK","TABLE"],                                       time:90, difficulty:"easy"   },
+    { words:["CHAIR","PHONE","LAPTOP"],                             time:85, difficulty:"easy"   },
+    { words:["MOUSE","KEYBOARD","SCREEN"],                          time:80, difficulty:"easy"   },
+    { words:["BOTTLE","GLASS","PLATE"],                             time:75, difficulty:"medium" },
+    { words:["SPOON","FORK","KNIFE","BAG"],                         time:70, difficulty:"medium" },
+    { words:["BACKPACK","CLOCK","WATCH","LAMP"],                    time:65, difficulty:"medium" },
+    { words:["SOFA","BED","PILLOW","BLANKET"],                      time:60, difficulty:"hard"   },
+    { words:["DOOR","WINDOW","CARPET","CURTAIN"],                   time:55, difficulty:"hard"   },
+    { words:["MIRROR","BRUSH","TOOTHBRUSH","COMB"],                 time:50, difficulty:"hard"   },
+    { words:["SCISSORS","TOOLBOX","REMOTE","CAMERA","PRINTER"],     time:45, difficulty:"expert", isBoss:true },
+  ],
+  // ── World 9: SCIENCE ─────────────────────────────────────────────────────────
+  9: [
+    { words:["ATOM","CELL"],                                        time:90, difficulty:"easy"   },
+    { words:["DNA","GENE"],                                         time:90, difficulty:"easy"   },
+    { words:["FORCE","MASS","ENERGY"],                              time:85, difficulty:"easy"   },
+    { words:["GRAVITY","MOLECULE","REACTION"],                      time:80, difficulty:"easy"   },
+    { words:["ELECTRON","PROTON","NEUTRON"],                        time:75, difficulty:"medium" },
+    { words:["CHEMISTRY","PHYSICS","BIOLOGY","ORGANISM"],           time:70, difficulty:"medium" },
+    { words:["ECOSYSTEM","EVOLUTION","PHOTOSYNTHESIS","EXPERIMENT"],time:65, difficulty:"medium" },
+    { words:["LABORATORY","THEORY","EQUATION","FORMULA"],           time:60, difficulty:"hard"   },
+    { words:["MAGNET","RADIATION","SPECTRUM","QUANTUM"],            time:55, difficulty:"hard"   },
+    { words:["THERMODYNAMICS","VELOCITY","ACCELERATION","PRESSURE"],time:50, difficulty:"hard"   },
+    { words:["DENSITY","VOLUME","WAVE","FREQUENCY","AMPLITUDE"],    time:45, difficulty:"expert", isBoss:true },
+  ],
+  // ── World 10: HISTORY ────────────────────────────────────────────────────────
+  10: [
+    { words:["KING","WAR"],                                         time:90, difficulty:"easy"   },
+    { words:["ARMY","CASTLE"],                                      time:90, difficulty:"easy"   },
+    { words:["EMPIRE","KNIGHT","BATTLE"],                           time:85, difficulty:"easy"   },
+    { words:["DYNASTY","REVOLUTION","CIVILIZATION"],                time:80, difficulty:"easy"   },
+    { words:["INDUSTRIAL","ANCIENT","MEDIEVAL"],                    time:75, difficulty:"medium" },
+    { words:["MODERN","COLONY","INDEPENDENCE","TREATY"],            time:70, difficulty:"medium" },
+    { words:["CONQUEST","EXPANSION","REBELLION","MONARCHY"],        time:65, difficulty:"medium" },
+    { words:["DEMOCRACY","REPUBLIC","EMPEROR","PHARAOH"],           time:60, difficulty:"hard"   },
+    { words:["VIKING","SAMURAI","CRUSADE","RENAISSANCE"],           time:55, difficulty:"hard"   },
+    { words:["DISCOVERY","EXPLORATION","MIGRATION","CULTURE"],      time:50, difficulty:"hard"   },
+    { words:["HERITAGE","TRADITION","ARCHAEOLOGY","ARTIFACT","TIMELINE"], time:45, difficulty:"expert", isBoss:true },
+  ],
+};
+
+// ─── GRID CAPS ────────────────────────────────────────────────────────────────
+const GRID_CAPS = { 5:{maxLen:4}, 6:{maxLen:5}, 7:{maxLen:6}, 8:{maxLen:7}, 9:{maxLen:8} };
+
+// ─── GRID GENERATION ──────────────────────────────────────────────────────────
+const DIRS8 = [[0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+const ALPHA  = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+function wordInGrid(grid, word) {
+  const n = grid.length;
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      for (const [dr,dc] of DIRS8) {
+        let ok = true;
+        for (let i = 0; i < word.length; i++) {
+          const rr=r+dr*i, cc=c+dc*i;
+          if (rr<0||rr>=n||cc<0||cc>=n||grid[rr][cc]!==word[i]){ok=false;break;}
+        }
+        if (ok) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function placeWord(grid, n, word, rng) {
+  const dirs = [...DIRS8].sort(()=>rng()-0.5);
+  for (let a=0; a<600; a++) {
+    const [dr,dc]=dirs[a%8];
+    const r=Math.floor(rng()*n), c=Math.floor(rng()*n);
+    const er=r+dr*(word.length-1), ec=c+dc*(word.length-1);
+    if(er<0||er>=n||ec<0||ec>=n) continue;
+    let ok=true;
+    const cells=[];
+    for(let i=0;i<word.length&&ok;i++){
+      const rr=r+dr*i,cc=c+dc*i;
+      if(grid[rr][cc]!==""&&grid[rr][cc]!==word[i]) ok=false;
+      else cells.push([rr,cc]);
+    }
+    if(ok){cells.forEach(([rr,cc],i)=>{grid[rr][cc]=word[i];});return cells;}
+  }
+  // Force horizontal
+  for(let row=0;row<n;row++){
+    for(let col=0;col<=n-word.length;col++){
+      let ok=true;
+      for(let i=0;i<word.length&&ok;i++) if(grid[row][col+i]!==""&&grid[row][col+i]!==word[i]) ok=false;
+      if(ok){const cells=[];for(let i=0;i<word.length;i++){grid[row][col+i]=word[i];cells.push([row,col+i]);}return cells;}
+    }
+  }
+  return null;
+}
+
+function buildPuzzle(n, required, extra=[]) {
+  // ALL words are required — never filter by length.
+  // Grid is auto-sized by autoGrid() so longest word always fits horizontally.
+  const all = [...required, ...extra].filter(w => w && w.length >= 1);
+
+  for (let attempt = 0; attempt < 15; attempt++) {
+    const rng = Math.random.bind(Math);
+    const grid = Array.from({length:n}, () => Array(n).fill(""));
+    const placed = {};
+    for (const w of all) {
+      const cells = placeWord(grid, n, w, rng);
+      if (cells) placed[w] = cells;
+    }
+    for (let r=0; r<n; r++) for (let c=0; c<n; c++) if (!grid[r][c]) grid[r][c] = ALPHA[Math.floor(Math.random()*26)];
+    // All required words must be in grid
+    if (required.every(w => placed[w] && wordInGrid(grid, w))) {
+      return { grid, placed, visible: required, hidden: extra.filter(w => placed[w]) };
+    }
+  }
+  // Guaranteed fallback — write each word on its own row
+  const grid = Array.from({length:n}, () => Array(n).fill(""));
+  const placed = {};
+  let row = 0;
+  for (const w of all) {
+    if (row >= n) break;
+    const cells = [];
+    for (let i = 0; i < w.length && i < n; i++) { grid[row][i] = w[i]; cells.push([row, i]); }
+    placed[w] = cells; row++;
+  }
+  for (let r=0; r<n; r++) for (let c=0; c<n; c++) if (!grid[r][c]) grid[r][c] = ALPHA[Math.floor(Math.random()*26)];
+  return { grid, placed, visible: required, hidden: extra };
+}
+
+// ─── LEVEL SYSTEM ─────────────────────────────────────────────────────────────
+function getLevelSpec(chapId, lvIdx) {
+  const pre = PREDEFINED[chapId];
+  if (pre && lvIdx < pre.length) {
+    const lv = pre[lvIdx];
+    const gridSize = autoGrid(lv.words);
+    return { ...lv, gridSize, required: lv.words, extra: [], isPredefined: true };
+  }
+  const last = pre?.[pre.length-1];
+  return { ...last, gridSize: autoGrid(last?.words||[]), required: last?.words||[], extra: [], isPredefined:false, isBoss:false };
+}
+
+// ─── STAR + PROGRESS ──────────────────────────────────────────────────────────
+function calcStars(timeLeft, totalTime, mistakes) {
+  if (mistakes===0 && timeLeft/totalTime>=0.5) return 3;
+  if (mistakes<=3  && timeLeft/totalTime>=0.2) return 2;
+  return 1;
+}
+const STAR_COINS = {1:50, 2:100, 3:150};
+const LS_KEY = "wsp_v6";
+try { ["wsp_v1","wsp_v2","wsp_v3","wsp_v4","wsp_v5"].forEach(k=>localStorage.removeItem(k)); } catch {}
+
+function loadProg() {
+  try { const v=localStorage.getItem(LS_KEY); if(v) return JSON.parse(v); } catch {}
+  // All 10 worlds have Lv1 open from start
+  const unlocked = {};
+  CHAPTERS.forEach(c => { unlocked[`${c.id}-0`] = true; });
+  return { coins:500, stars:{}, unlocked, ownedSkins:[1], activeSkin:1, streak:1, lastDate:null };
+}
+const _st={id:null};
+function saveProg(p){ clearTimeout(_st.id); _st.id=setTimeout(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify(p));}catch{}},400); }
+function lvKey(cid,li){return `${cid}-${li}`;}
+function today(){return new Date().toISOString().slice(0,10);}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── ENDLESS MODE ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Flat word pool from all chapters — used for endless level generation
+const ENDLESS_WORDS = [
+  // Food
+  "APPLE","BREAD","STEAK","PIZZA","SALAD","MANGO","PASTA","SUSHI","TACOS","LEMON",
+  "GRAPE","MELON","PEACH","PLUM","BACON","CREAM","HONEY","OLIVE","ONION","GARLIC",
+  "TOMATO","BUTTER","CHEESE","POTATO","COFFEE","ORANGE","BANANA","CHERRY","COOKIE","BISCUIT",
+  // Animals
+  "LION","WOLF","BEAR","DEER","FROG","DUCK","CROW","HAWK","SEAL","MOLE",
+  "TIGER","EAGLE","SHARK","WHALE","CAMEL","KOALA","PANDA","ZEBRA","LLAMA","BISON",
+  "PYTHON","JAGUAR","FALCON","PARROT","RABBIT","TURTLE","MONKEY","DONKEY","ELEPHANT","PENGUIN",
+  // Space
+  "MARS","MOON","STAR","COMET","ORBIT","PROBE","NOVA","VOID","SOLAR","LUNAR",
+  "VENUS","PLUTO","SATURN","NEBULA","GALAXY","METEOR","ROCKET","PLANET","COSMOS","QUASAR",
+  "ASTEROID","UNIVERSE","TELESCOPE","BLACKHOLE","SUPERNOVA",
+  // Countries
+  "EGYPT","CHINA","JAPAN","INDIA","ITALY","SPAIN","GHANA","KENYA","CHILE","PERU",
+  "FRANCE","BRAZIL","CANADA","MEXICO","RUSSIA","TURKEY","GREECE","SWEDEN","NORWAY","POLAND",
+  "GERMANY","NIGERIA","AUSTRIA","IRELAND","DENMARK","ENGLAND","UKRAINE","VIETNAM","PORTUGAL","ARGENTINA",
+  // Sports
+  "GOLF","POLO","JUDO","SURF","SWIM","DIVE","RACE","KICK","JUMP","SPIN",
+  "RUGBY","TENNIS","HOCKEY","BOXING","SOCCER","SKIING","FENCING","CYCLING","CRICKET","ARCHERY",
+  "BASEBALL","FOOTBALL","SWIMMING","MARATHON","WRESTLING","VOLLEYBALL","BADMINTON","GYMNASTICS",
+  // Technology
+  "CHIP","DATA","CODE","BYTE","WIFI","DISK","BOOT","FILE","SCAN","LINK",
+  "ROBOT","PIXEL","LASER","MODEM","VIRUS","CLOUD","DRONE","CABLE","MOUSE","SCREEN",
+  "SERVER","SENSOR","CAMERA","PRINTER","BATTERY","CIRCUIT","PROGRAM","NETWORK","KEYBOARD","INTERNET",
+  // Science
+  "ATOM","CELL","GENE","MASS","HEAT","ACID","BASE","BOND","WAVE","FLUX",
+  "LASER","PRISM","QUARK","FLUID","FORCE","MAGNET","PLASMA","ENERGY","PHOTON","PROTON",
+  "GRAVITY","NEUTRON","POLYMER","CIRCUIT","VOLTAGE","MOLECULE","ELECTRON","BACTERIA","ELEMENT","REACTION",
+  // History
+  "ROME","TROY","WAR","KING","SHIP","FORT","ARMY","GOLD","IRON","SILK",
+  "EGYPT","SWORD","CASTLE","KNIGHT","EMPIRE","LEGEND","VOYAGE","TREATY","REVOLT","DYNASTY",
+  "PHARAOH","PYRAMID","GLADIATOR","CONQUEST","MEDIEVAL","CRUSADES","DEMOCRACY","REVOLUTION",
+];
+
+// Endless difficulty tiers — each tier defines the wave range and parameters
+const ENDLESS_TIERS = [
+  { name:"Starter",   emoji:"🌱", color:"#22c55e",  waves:[1,5],   gridMin:5,  gridMax:7,  words:[2,3], time:90,  bonus:0   },
+  { name:"Rookie",    emoji:"⚡",  color:"#84cc16",  waves:[6,10],  gridMin:6,  gridMax:8,  words:[3,4], time:80,  bonus:10  },
+  { name:"Skilled",   emoji:"🔥",  color:"#eab308",  waves:[11,15], gridMin:7,  gridMax:9,  words:[4,5], time:70,  bonus:25  },
+  { name:"Expert",    emoji:"💎",  color:"#f97316",  waves:[16,20], gridMin:8,  gridMax:10, words:[4,5], time:60,  bonus:50  },
+  { name:"Master",    emoji:"🏆",  color:"#ef4444",  waves:[21,25], gridMin:9,  gridMax:11, words:[5,6], time:55,  bonus:80  },
+  { name:"Legend",    emoji:"👑",  color:"#a855f7",  waves:[26,30], gridMin:10, gridMax:12, words:[5,6], time:50,  bonus:120 },
+  { name:"Mythic",    emoji:"🌌",  color:"#ec4899",  waves:[31,99], gridMin:11, gridMax:13, words:[6,7], time:45,  bonus:200 },
+];
+
+function getEndlessTier(wave) {
+  return ENDLESS_TIERS.find(t => wave >= t.waves[0] && wave <= t.waves[1]) || ENDLESS_TIERS[ENDLESS_TIERS.length-1];
+}
+
+function buildEndlessPuzzle(wave) {
+  const tier = getEndlessTier(wave);
+  // Grid grows with wave — capped at tier max
+  const gridSize = Math.min(tier.gridMin + Math.floor((wave - tier.waves[0]) / 2), tier.gridMax);
+  // Word count grows with wave
+  const [wMin, wMax] = tier.words;
+  const wordCount = Math.min(wMin + Math.floor((wave - tier.waves[0]) / 3), wMax);
+  // Time shrinks slightly each wave within tier (min 30s)
+  const timeBonus = Math.max(0, 5 - Math.floor((wave - tier.waves[0]) / 2));
+  const time = Math.max(30, tier.time - Math.floor(wave / 5) + timeBonus);
+  // Pick words that fit in grid
+  const pool = ENDLESS_WORDS.filter(w => w.length <= gridSize - 2);
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  const words = shuffled.slice(0, wordCount);
+  const puzzle = buildPuzzle(gridSize, words, []);
+  return { ...puzzle, size: gridSize, time, tier, wave, isBoss: wave % 5 === 0 && wave > 0 };
+}
+
+// Leaderboard helpers — 2-player local storage
+const LB_KEY = "wsp_endless_lb_v1";
+function loadLeaderboard() {
+  try { const v = localStorage.getItem(LB_KEY); if(v) return JSON.parse(v); } catch {}
+  return { p1: { name:"Player 1", best:0, history:[] }, p2: { name:"Player 2", best:0, history:[] } };
+}
+function saveLeaderboard(lb) {
+  try { localStorage.setItem(LB_KEY, JSON.stringify(lb)); } catch {}
+}
+function updateLeaderboard(player, waves, coins) {
+  const lb = loadLeaderboard();
+  const p = lb[player];
+  if (waves > p.best) p.best = waves;
+  p.history = [...(p.history||[]).slice(-9), { waves, coins, date: today() }];
+  lb[player] = p;
+  saveLeaderboard(lb);
+  return lb;
+}
+
+
+
+// ─── WORD COLORS — bright, high-contrast, easily distinguishable ─────────────
+const WORD_COLORS = [
+  "#ff3b3b", // vivid red
+  "#ff9500", // vivid orange
+  "#ffe600", // vivid yellow
+  "#00e676", // vivid green
+  "#00b8ff", // vivid cyan
+  "#d500f9", // vivid purple
+  "#ff4081", // vivid pink
+  "#00e5ff", // vivid sky
+  "#76ff03", // vivid lime
+  "#ff6d00", // deep orange
+  "#e040fb", // vivid violet
+  "#1de9b6", // vivid teal
+];
+
+// ─── SKINS (30 total — originals kept, new ones added) ───────────────────────
+const SKINS = [
+  // ── Common (1–8)
+  {id:1,  name:"Snowflake",  rarity:"Common",    price:500,   sel:"#bfdbfe", letter:"#1e3a5f"},
+  {id:2,  name:"Ember",      rarity:"Common",    price:600,   sel:"#fef08a", letter:"#713f12"},
+  {id:3,  name:"Forest",     rarity:"Common",    price:700,   sel:"#bbf7d0", letter:"#14532d"},
+  {id:4,  name:"Lavender",   rarity:"Common",    price:800,   sel:"#e9d5ff", letter:"#4c1d95"},
+  {id:5,  name:"Coral",      rarity:"Common",    price:900,   sel:"#fecdd3", letter:"#881337"},
+  {id:6,  name:"Sand",       rarity:"Common",    price:1000,  sel:"#fef3c7", letter:"#78350f"},
+  {id:7,  name:"Mint",       rarity:"Common",    price:1100,  sel:"#ccfbf1", letter:"#134e4a"},
+  {id:8,  name:"Rose",       rarity:"Common",    price:1200,  sel:"#fce7f3", letter:"#831843"},
+  // ── Rare (9–16)
+  {id:9,  name:"Ocean",      rarity:"Rare",      price:2000,  sel:"#67e8f9", letter:"#164e63"},
+  {id:10, name:"Sunset",     rarity:"Rare",      price:2400,  sel:"#fed7aa", letter:"#7c2d12"},
+  {id:11, name:"Toxic",      rarity:"Rare",      price:3000,  sel:"#d9f99d", letter:"#365314"},
+  {id:12, name:"Aurora",     rarity:"Rare",      price:3200,  sel:"#ddd6fe", letter:"#2e1065"},
+  {id:13, name:"Lava",       rarity:"Rare",      price:3500,  sel:"#fca5a5", letter:"#7f1d1d"},
+  {id:14, name:"Midnight",   rarity:"Rare",      price:3800,  sel:"#c7d2fe", letter:"#1e1b4b"},
+  {id:15, name:"Jade",       rarity:"Rare",      price:4000,  sel:"#a7f3d0", letter:"#064e3b"},
+  {id:16, name:"Blood",      rarity:"Rare",      price:4500,  sel:"#fecaca", letter:"#450a0a"},
+  // ── Epic (17–23)
+  {id:17, name:"Inferno",    rarity:"Epic",      price:5000,  sel:"#ff6b35", letter:"#7f1d1d"},
+  {id:18, name:"Nebula",     rarity:"Epic",      price:6000,  sel:"#c084fc", letter:"#1e0535"},
+  {id:19, name:"Storm",      rarity:"Epic",      price:6500,  sel:"#93c5fd", letter:"#0c2a5e"},
+  {id:20, name:"Void",       rarity:"Epic",      price:7000,  sel:"#818cf8", letter:"#1e1b4b"},
+  {id:21, name:"Venom",      rarity:"Epic",      price:7500,  sel:"#4ade80", letter:"#052e16"},
+  {id:22, name:"Magma",      rarity:"Epic",      price:8000,  sel:"#fb923c", letter:"#431407"},
+  {id:23, name:"Arctic",     rarity:"Epic",      price:8500,  sel:"#e0f2fe", letter:"#0c4a6e"},
+  // ── Legendary (24–27)
+  {id:24, name:"Phoenix",    rarity:"Legendary", price:15000, sel:"#fef08a", letter:"#713f12"},
+  {id:25, name:"Dragon",     rarity:"Legendary", price:18000, sel:"#f87171", letter:"#450a0a"},
+  {id:26, name:"Glacier",    rarity:"Legendary", price:20000, sel:"#bfdbfe", letter:"#172554"},
+  {id:27, name:"Eclipse",    rarity:"Legendary", price:22000, sel:"#a78bfa", letter:"#13005a"},
+  // ── Mythic (28–30)
+  {id:28, name:"Omega",      rarity:"Mythic",    price:"$4.99", sel:"#a7f3d0", letter:"#022c22"},
+  {id:29, name:"Celestial",  rarity:"Mythic",    price:"$6.99", sel:"#f5d0fe", letter:"#4a044e"},
+  {id:30, name:"Abyss",      rarity:"Mythic",    price:"$9.99", sel:"#1e1b4b", letter:"#a5b4fc"},
+];
+const RARITY_CLR={Common:"#94a3b8",Rare:"#60a5fa",Epic:"#a78bfa",Legendary:"#fbbf24",Mythic:"#f0abfc"};
+const STREAK_R=[100,150,200,250,300,350,500];
+
+const HINT_COST = 30;   // coins to reveal a word
+const TIME_COST = 50;   // coins for +10s
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── SOUND SYSTEM (Web Audio API — no external files needed) ──────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const SFX = (() => {
+  let ctx = null;
+  let unlocked = false;
+  let bgNodes = null; // background music nodes
+  let bgGain = null;
+  let musicOn = true;
+
+  function getCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+
+  // Call this on first user interaction to unlock audio
+  function unlock() {
+    if (unlocked) return;
+    unlocked = true;
+    const c = getCtx();
+    // Play a silent buffer to fully unlock on iOS
+    const buf = c.createBuffer(1, 1, 22050);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.connect(c.destination);
+    src.start(0);
+    // Start background music after unlock
+    setTimeout(() => startBgMusic(), 100);
+  }
+
+  function tone(freq, type, duration, vol=0.3, delay=0) {
+    try {
+      const c = getCtx();
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      // Route through master gain so music doesn't block sfx
+      osc.connect(gain); gain.connect(c.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, c.currentTime + delay);
+      gain.gain.setValueAtTime(vol, c.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + delay + duration);
+      osc.start(c.currentTime + delay);
+      osc.stop(c.currentTime + delay + duration);
+    } catch {}
+  }
+
+  function chord(freqs, type, duration, vol=0.2) {
+    freqs.forEach((f, i) => tone(f, type, duration, vol, i * 0.04));
+  }
+
+  // ── Background ambient music — gentle looping arpeggio ──
+  function startBgMusic() {
+    if (!musicOn) return;
+    stopBgMusic();
+    try {
+      const c = getCtx();
+      bgGain = c.createGain();
+      bgGain.gain.setValueAtTime(0.06, c.currentTime);
+      bgGain.connect(c.destination);
+
+      // Pentatonic scale — calming, game-like
+      const notes = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3];
+      const pattern = [0,2,4,5,4,2,1,0,3,5,6,5,3,1,0,2];
+      const bpm = 72;
+      const step = 60 / bpm;
+
+      bgNodes = [];
+      pattern.forEach((ni, i) => {
+        const osc = c.createOscillator();
+        const g   = c.createGain();
+        osc.connect(g); g.connect(bgGain);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(notes[ni], c.currentTime);
+
+        const t = c.currentTime + i * step;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.9, t + 0.05);
+        g.gain.setValueAtTime(0.9, t + step * 0.7);
+        g.gain.linearRampToValueAtTime(0, t + step * 0.95);
+
+        osc.start(t);
+        osc.stop(t + step);
+        bgNodes.push(osc);
+      });
+
+      // Loop
+      const loopDur = pattern.length * step * 1000;
+      bgNodes._timer = setTimeout(() => { if(musicOn) startBgMusic(); }, loopDur - 100);
+    } catch {}
+  }
+
+  function stopBgMusic() {
+    try {
+      if (bgNodes) {
+        clearTimeout(bgNodes._timer);
+        bgNodes.forEach(n => { try { n.stop(); } catch {} });
+        bgNodes = null;
+      }
+      if (bgGain) { bgGain.disconnect(); bgGain = null; }
+    } catch {}
+  }
+
+  return {
+    unlock,
+    toggleMusic: () => {
+      musicOn = !musicOn;
+      if (musicOn) startBgMusic(); else stopBgMusic();
+      return musicOn;
+    },
+    isMusicOn: () => musicOn,
+    restartMusic: () => { if(musicOn) startBgMusic(); },
+    stopMusic: stopBgMusic,
+
+    // ── Word found — bright ascending ding ──
+    wordFound: () => {
+      chord([523, 659, 784], "sine", 0.4, 0.22);
+      tone(1046, "sine", 0.2, 0.1, 0.12);
+    },
+    // ── Hidden word — magical sparkle ──
+    hiddenFound: () => {
+      [600,800,1000,1300,1600,2000].forEach((f,i) => tone(f,"sine",0.18,0.15,i*0.055));
+    },
+    // ── Combo — rising power chord ──
+    combo: (n) => {
+      const base = 350 + n * 70;
+      [base, base*1.25, base*1.5, base*2].forEach((f,i) => tone(f,"square",0.15,0.13,i*0.045));
+    },
+    // ── Win — celebratory fanfare ──
+    win: () => {
+      [[523,659,784],[587,740,880],[659,784,988],[784,988,1175]].forEach((ch,i) =>
+        ch.forEach(f => tone(f,"sine",0.55,0.16,i*0.16))
+      );
+      // Coin sparkle at end
+      [1200,1400,1600,1800].forEach((f,i) => tone(f,"sine",0.15,0.12,0.6+i*0.05));
+    },
+    // ── Boss win — epic big fanfare ──
+    bossWin: () => {
+      [[130,165,196],[146,185,220],[165,208,247],[174,220,261]].forEach((ch,i) =>
+        ch.forEach(f => tone(f,"sawtooth",0.6,0.12,i*0.2))
+      );
+      [[523,659,784],[587,740,880],[659,784,988],[784,988,1175]].forEach((ch,i) =>
+        ch.forEach(f => tone(f,"sine",0.7,0.18,0.8+i*0.18))
+      );
+    },
+    // ── Lose — sad descending ──
+    lose: () => {
+      [440,370,311,261,220,185].forEach((f,i) => tone(f,"sawtooth",0.35,0.18,i*0.12));
+    },
+    // ── Mistake — short thud ──
+    mistake: () => {
+      tone(110,"sawtooth",0.08,0.3);
+      tone(90,"square",0.12,0.2,0.05);
+    },
+    // ── Hint — soft magic chime ──
+    hint: () => {
+      [880,1100,1320,1760].forEach((f,i) => tone(f,"sine",0.35,0.18,i*0.08));
+    },
+    // ── Tap — crisp click ──
+    tap: () => {
+      tone(600,"sine",0.05,0.18);
+      tone(800,"sine",0.04,0.1,0.03);
+    },
+    // ── Timer warning ──
+    timerWarn: () => {
+      tone(440,"square",0.08,0.15);
+      tone(330,"square",0.08,0.12,0.1);
+    },
+    // ── Streak / level up ──
+    levelUp: () => {
+      [392,494,587,784,988].forEach((f,i) => tone(f,"sine",0.4,0.2,i*0.1));
+    },
+    // ── Coin pickup ──
+    coin: () => {
+      tone(1047,"sine",0.08,0.2);
+      tone(1319,"sine",0.1,0.18,0.07);
+    },
+  };
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+function App() {
+  // ── Force full-screen on mobile: fix viewport meta + body styles ──
+  useEffect(()=>{
+    let meta = document.querySelector('meta[name="viewport"]');
+    if(!meta){ meta=document.createElement('meta'); meta.name='viewport'; document.head.appendChild(meta); }
+    meta.content='width=device-width,initial-scale=0.8,maximum-scale=0.8,user-scalable=no,viewport-fit=cover';
+    document.documentElement.style.cssText='margin:0;padding:0;width:100%;height:100%;overflow:hidden;';
+    document.body.style.cssText='margin:0;padding:0;width:100%;height:100%;overflow:hidden;';
+    const root=document.getElementById('root');
+    if(root) root.style.cssText='width:100%;height:100%;overflow:hidden;display:flex;flex-direction:column;';
+    // Unlock audio on first touch/click anywhere
+    const unlock = () => { SFX.unlock(); };
+    document.addEventListener('touchstart', unlock, { once: true, passive: true });
+    document.addEventListener('mousedown',  unlock, { once: true });
+    return () => {
+      document.removeEventListener('touchstart', unlock);
+      document.removeEventListener('mousedown', unlock);
+    };
+  },[]);
+
+  const [view,setView]     = useState("boot");
+  const [prog,setProg]     = useState(loadProg);
+  const [chapter,setCh]    = useState(null);
+  const [lvIdx,setLvIdx]   = useState(0);
+  const [puzzle,setPuzzle] = useState(null);
+  // ── Game state
+  const [found,setFound]   = useState({});  // { WORD: { cells, color } }
+  const [foundH,setFoundH] = useState([]);
+  const [selCells,setSel]  = useState([]);
+  const [timeLeft,setTime] = useState(60);
+  const [status,setStatus] = useState("playing");
+  const [dragging,setDrag] = useState(false);
+  const [mistakes,setMist] = useState(0);
+  const [combo,setCombo]   = useState(0);
+  const [comboTxt,setComboTxt]=useState(null);
+  const [stars,setStars]   = useState(0);
+  const [showStreak,setShowStreak]=useState(false);
+  const [isDaily,setIsDaily]=useState(false);
+  const [floatCoins,setFloatCoins]=useState([]);
+  // ── Endless Mode state
+  const [endlessWave,setEndlessWave]   = useState(1);
+  const [endlessScore,setEndlessScore] = useState(0);  // total coins earned
+  const [endlessPlayer,setEndlessPlayer] = useState("p1");
+  const [leaderboard,setLeaderboard]   = useState(loadLeaderboard);
+  const [endlessPuzzle,setEndlessPuzzle] = useState(null);
+  const [endlessStatus,setEndlessStatus] = useState("playing"); // playing|won|lost
+  const [endlessNames,setEndlessNames] = useState(()=>{
+    const lb=loadLeaderboard(); return {p1:lb.p1.name,p2:lb.p2.name};
+  });
+
+  const [musicOn, setMusicOn] = useState(true);
+
+  // Stop music during play, restart on menu
+  useEffect(()=>{
+    if(view==="menu") SFX.restartMusic();
+    else SFX.stopMusic();
+  },[view]);
+
+  function toggleMusic(){
+    const next = SFX.toggleMusic();
+    setMusicOn(next);
+  }
+
+  const [dailyDone,setDailyDone]=useState(()=> {
+    try { return localStorage.getItem("wsp_daily")===today(); } catch { return false; }
+  });
+
+  const puzzleRef = useRef(null);
+  useEffect(() => { puzzleRef.current = puzzle; }, [puzzle]);
+
+  const foundRef = useRef({});
+  useEffect(() => { foundRef.current = found; }, [found]);
+
+  const foundHRef = useRef([]);
+  useEffect(() => { foundHRef.current = foundH; }, [foundH]);
+
+  const endlessEndRef = useRef(null);
+  endlessEndRef.current = endlessEnd;
+  const timerR     = useRef(null);
+  const comboR     = useRef(null);
+  const startCellR = useRef(null);
+  const draggingR  = useRef(false);
+  const selR       = useRef([]);
+  const lastWordT  = useRef(0);
+  useEffect(()=>saveProg(prog),[prog]);
+
+  // Boot
+  useEffect(()=>{setTimeout(()=>setView("menu"),800);},[]);
+
+  // Streak
+  useEffect(()=>{
+    if(view!=="menu")return;
+    const t=today(),last=prog.lastDate;
+    if(last===t)return;
+    const yest=new Date(Date.now()-86400000).toISOString().slice(0,10);
+    const ns=last===yest?Math.min(prog.streak+1,7):1;
+    setProg(p=>({...p,streak:ns,lastDate:t,coins:p.coins+(STREAK_R[ns-1]||100)}));
+    setShowStreak(true);
+  },[view]);
+
+  // Timer
+  useEffect(()=>{
+    if(view!=="play"||status!=="playing"){clearInterval(timerR.current);return;}
+    timerR.current=setInterval(()=>{
+      setTime(t=>{
+        if(t===10) SFX.timerWarn(); // ── SOUND: 10s warning
+        if(t<=1){
+          clearInterval(timerR.current);
+          // Check if in endless mode
+          if(view==="endless"){
+            endlessEndRef.current("lost");
+          } else {
+            SFX.lose();
+          }
+          setStatus("lost");return 0;
+        }
+        return t-1;
+      });
+    },1000);
+    return()=>clearInterval(timerR.current);
+  },[view,status]);
+
+  const skin = SKINS.find(s=>s.id===prog.activeSkin)||SKINS[0];
+
+  function spawnCoin(amt){
+    const id=Date.now()+Math.random();
+    setFloatCoins(p=>[...p,{id,amt}]);
+    setTimeout(()=>setFloatCoins(p=>p.filter(f=>f.id!==id)),1500);
+  }
+
+  // ── START LEVEL ─────────────────────────────────────────────────────────────
+  function startLevel(ch, idx, daily=false) {
+    clearInterval(timerR.current);
+    const spec = getLevelSpec(ch.id, idx);
+    const puz  = buildPuzzle(spec.gridSize, spec.required||[], spec.extra||[]);
+    const puzzleObj = {
+      ...puz,
+      size: spec.gridSize,
+      isBoss: !!spec.isBoss,
+      time: spec.time,
+      difficulty: spec.difficulty || "easy"
+    };
+    // Sync refs FIRST (synchronous) so hint/onUp never read stale data
+    puzzleRef.current  = puzzleObj;
+    foundRef.current   = {};
+    foundHRef.current  = [];
+    selR.current       = [];
+    startCellR.current = null;
+    draggingR.current  = false;
+    // Then set state
+    setCh(ch); setLvIdx(idx); setIsDaily(daily);
+    setPuzzle(puzzleObj);
+    setFound({}); setFoundH([]); setSel([]);
+    setTime(spec.time); setStatus("playing");
+    setMist(0); setCombo(0); setStars(0);
+    setDrag(false);
+    setView("play");
+  }
+
+  function startDaily(){
+    if(dailyDone) return;
+    const seed = today().split("").reduce((a,c)=>a+c.charCodeAt(0),0);
+    const ch   = CHAPTERS[seed % CHAPTERS.length];
+    const li   = seed % ((PREDEFINED[ch.id]||[]).length);
+    startLevel(ch, li, true);
+  }
+
+  // ── ENDLESS MODE FUNCTIONS ────────────────────────────────────────────────────
+  function startEndless(player) {
+    clearInterval(timerR.current);
+    const wave = 1;
+    const puz = buildEndlessPuzzle(wave);
+    puzzleRef.current  = puz; foundRef.current = {}; foundHRef.current = [];
+    selR.current = []; startCellR.current = null; draggingR.current = false;
+    setEndlessPlayer(player);
+    setEndlessWave(wave);
+    setEndlessScore(0);
+    setEndlessPuzzle(puz);
+    setEndlessStatus("playing");
+    setPuzzle(puz);
+    setFound({}); setFoundH([]); setSel([]);
+    setTime(puz.time); setStatus("playing");
+    setMist(0); setCombo(0); setStars(0); setDrag(false);
+    setView("endless");
+  }
+
+  function endlessNextWave() {
+    clearInterval(timerR.current);
+    const nextWave = endlessWave + 1;
+    const puz = buildEndlessPuzzle(nextWave);
+    puzzleRef.current = puz; foundRef.current = {}; foundHRef.current = [];
+    selR.current = []; startCellR.current = null; draggingR.current = false;
+    setEndlessWave(nextWave);
+    setEndlessPuzzle(puz);
+    setPuzzle(puz);
+    setFound({}); setFoundH([]); setSel([]);
+    setTime(puz.time); setStatus("playing");
+    setEndlessStatus("playing");
+    setMist(0); setCombo(0); setStars(0);
+  }
+
+  function endlessEnd(reason) {
+    // reason: "lost" | "quit"
+    clearInterval(timerR.current);
+    const wavesCompleted = reason === "lost" ? endlessWave - 1 : endlessWave;
+    const lb = updateLeaderboard(endlessPlayer, wavesCompleted, endlessScore);
+    setLeaderboard(lb);
+    setEndlessStatus(reason === "lost" ? "gameover" : "quit");
+    if (reason === "lost") SFX.lose();
+  }
+
+  // Keep handleWin in a ref so onUp always calls the latest version (no stale closure)
+  const handleWinRef = useRef(null);
+  handleWinRef.current = function handleWin(finalFound) {
+    clearInterval(timerR.current);
+    // ── Endless win branch
+    if(view==="endless"||endlessPuzzle){
+      const tier = getEndlessTier(endlessWave);
+      const coins = 30 + tier.bonus + endlessWave * 5 + (endlessWave%5===0?80:0);
+      setEndlessScore(s=>s+coins);
+      spawnCoin(coins);
+      setProg(p=>({...p, coins:p.coins+coins}));
+      if(endlessWave%5===0) SFX.bossWin(); else SFX.win();
+      setEndlessStatus("waveWon");
+      setTimeout(()=>setStatus("won"),300);
+      return;
+    }
+    const s = calcStars(timeLeft, puzzle.time, mistakes);
+    const coins = STAR_COINS[s]+(puzzle.isBoss?150:0)+(isDaily?200:0);
+    setStars(s); spawnCoin(coins);
+    if(puzzle.isBoss) SFX.bossWin(); else SFX.win();
+    if(isDaily){
+      setDailyDone(true);
+      try { localStorage.setItem("wsp_daily", today()); } catch {}
+    }
+    setProg(prev=>{
+      const p={...prev, coins:prev.coins+coins, stars:{...prev.stars}, unlocked:{...prev.unlocked}};
+      const k=lvKey(chapter.id,lvIdx);
+      if((p.stars[k]||0)<s) p.stars[k]=s;
+      p.unlocked[lvKey(chapter.id,lvIdx+1)]=true;
+      const predLen=(PREDEFINED[chapter.id]||[]).length;
+      if(lvIdx+1>=predLen){
+        const nc=CHAPTERS.find(c=>c.id===chapter.id+1);
+        if(nc) p.unlocked[lvKey(nc.id,0)]=true;
+      }
+      return p;
+    });
+    setTimeout(()=>setStatus("won"),400);
+  };
+
+  // ── CELL DRAG — uses refs to avoid stale closure ─────────────────────────────
+  const getCells = useCallback((s,e)=>{
+    if(!s||!e) return [s||e].filter(Boolean);
+    const dr=e[0]-s[0], dc=e[1]-s[1];
+    const len=Math.max(Math.abs(dr),Math.abs(dc));
+    if(len===0) return [s];
+    const sr=dr===0?0:dr/Math.abs(dr), sc=dc===0?0:dc/Math.abs(dc);
+    if(Math.abs(dr)!==0&&Math.abs(dc)!==0&&Math.abs(dr)!==Math.abs(dc)) return Array.from({length:Math.abs(dr)+1},(_,i)=>[s[0]+sr*i,s[1]]);
+    return Array.from({length:len+1},(_,i)=>[s[0]+sr*i,s[1]+sc*i]);
+  },[]);
+
+  const onDown = useCallback((r,c)=>{
+    draggingR.current=true; setDrag(true);
+    startCellR.current=[r,c];
+    selR.current=[[r,c]]; setSel([[r,c]]);
+  },[]);
+
+  const onEnter = useCallback((r,c)=>{
+    if(!draggingR.current||!startCellR.current) return;
+    const path=getCells(startCellR.current,[r,c]);
+    const prev=selR.current;
+    if(path.length===prev.length && path.every(([pr,pc],i)=>pr===prev[i][0]&&pc===prev[i][1])) return;
+    selR.current=path; setSel(path);
+  },[getCells]);
+
+  const onUp = useCallback(()=>{
+    if(!draggingR.current){ setDrag(false); return; }
+    draggingR.current=false; setDrag(false);
+    const path = selR.current;
+    selR.current=[]; setSel([]);
+    if(path.length<2) return;
+
+    // Read from refs — always current, never stale
+    const puz  = puzzleRef.current;
+    const prev = foundRef.current;
+    const prevH = foundHRef.current;
+    if(!puz) return;
+
+    const word = path.map(([r,c])=>puz.grid[r][c]).join("");
+    const rev  = word.split("").reverse().join("");
+
+    // Check visible words
+    for(const w of [word, rev]){
+      if(puz.visible.includes(w) && !prev[w]){
+        const ci  = Object.keys(prev).length % WORD_COLORS.length;
+        const nf  = {...prev, [w]:{cells:path, color:WORD_COLORS[ci]}};
+        setFound(nf);
+        SFX.wordFound(); // ── SOUND: word found
+        // Combo
+        const now=Date.now(), diff=now-lastWordT.current; lastWordT.current=now;
+        setCombo(c=>{
+          const nc=diff<4000?c+1:1;
+          if(nc>1){
+            SFX.combo(nc); // ── SOUND: combo
+            setComboTxt(`COMBO ×${nc}!`);
+            clearTimeout(comboR.current);
+            comboR.current=setTimeout(()=>setComboTxt(null),1200);
+          }
+          return nc;
+        });
+        spawnCoin(10);
+        if(Object.keys(nf).length >= puz.visible.length){
+          setTimeout(()=>handleWinRef.current(nf), 0);
+        }
+        return;
+      }
+    }
+
+    // Check hidden words
+    for(const w of [word, rev]){
+      if(puz.hidden.includes(w) && !prevH.includes(w)){
+        setFoundH(p=>[...p, w]);
+        SFX.hiddenFound(); // ── SOUND: hidden word
+        spawnCoin(w.length*10);
+        setProg(p=>({...p, coins:p.coins+w.length*10}));
+        return;
+      }
+    }
+
+    // Nothing matched = mistake
+    if(path.length>=2){ SFX.mistake(); setMist(m=>m+1); }
+  },[]);
+
+  function useBoost(type){
+    if(type==="time"){
+      if(prog.coins < TIME_COST) return;
+      SFX.tap();
+      setProg(p=>({...p, coins: p.coins - TIME_COST}));
+      setTime(t=>Math.min(t+10,180));
+      spawnCoin(-TIME_COST);
+      return;
+    }
+    if(type==="hint"){
+      const puz = puzzleRef.current;
+      const cur = foundRef.current;
+      if(!puz) return;
+      if(prog.coins < HINT_COST) return;
+      const rem = puz.visible.filter(w => !cur[w]);
+      if(!rem.length) return;
+      const w = rem[Math.floor(Math.random() * rem.length)];
+      const wCells = puz.placed[w];
+      if(!wCells || wCells.length === 0) return;
+      setProg(p => ({...p, coins: p.coins - HINT_COST}));
+      SFX.hint();
+      const hintCells = [...wCells];
+      selR.current = hintCells;
+      setSel(hintCells);
+      setTimeout(() => { selR.current = []; setSel([]); }, 2000);
+      return;
+    }
+    if(type==="double" && status==="won"){
+      SFX.tap();
+      const bonus = STAR_COINS[stars] || 50;
+      setProg(p => ({...p, coins: p.coins + bonus}));
+      spawnCoin(bonus);
+    }
+  }
+
+  function goNext(){
+    if(isDaily){setView("map");return;}
+    const nL=lvIdx+1, predLen=(PREDEFINED[chapter.id]||[]).length;
+    if(nL<predLen) startLevel(chapter,nL);
+    else{const nc=CHAPTERS.find(c=>c.id===chapter.id+1);if(nc)startLevel(nc,0);else setView("menu");}
+  }
+
+  // ─── ROUTING ─────────────────────────────────────────────────────────────────
+  if(view==="endless"&&puzzle) return <EndlessScreen
+    puzzle={puzzle} endlessWave={endlessWave} endlessScore={endlessScore}
+    endlessStatus={endlessStatus} endlessPlayer={endlessPlayer}
+    leaderboard={leaderboard} endlessNames={endlessNames} setEndlessNames={n=>{
+      setEndlessNames(n);
+      const lb=loadLeaderboard();
+      lb.p1.name=n.p1; lb.p2.name=n.p2; saveLeaderboard(lb);
+      setLeaderboard({...lb});
+    }}
+    prog={prog} chapter={CHAPTERS[endlessWave%CHAPTERS.length]}
+    selCells={selCells} found={found} foundH={foundH}
+    timeLeft={timeLeft} status={status} combo={combo} comboTxt={comboTxt}
+    skin={skin} stars={stars} mistakes={mistakes}
+    floatCoins={floatCoins} dragging={dragging}
+    onDown={onDown} onEnter={onEnter} onUp={onUp}
+    onBoost={useBoost}
+    onNextWave={endlessNextWave}
+    onQuit={()=>{endlessEnd("quit");setView("menu");}}
+    onRetry={()=>startEndless(endlessPlayer)}
+  />;
+  if(view==="endless_setup") return <EndlessSetupScreen
+    leaderboard={leaderboard} endlessNames={endlessNames}
+    setEndlessNames={n=>{
+      setEndlessNames(n);
+      const lb=loadLeaderboard(); lb.p1.name=n.p1; lb.p2.name=n.p2;
+      saveLeaderboard(lb); setLeaderboard({...lb});
+    }}
+    onStart={startEndless} onBack={()=>setView("menu")}/>;
+  if(view==="boot") return <BootScreen/>;
+  if(view==="menu") return <MenuScreen prog={prog} showStreak={showStreak} onStreakClose={()=>setShowStreak(false)}
+    onPlay={()=>setView("map")} onShop={()=>setView("shop")} onDaily={startDaily} dailyDone={dailyDone}
+    onEndless={()=>setView("endless_setup")} musicOn={musicOn} onToggleMusic={toggleMusic}/>;
+  if(view==="map")  return <MapScreen  prog={prog} onSelect={startLevel} onBack={()=>setView("menu")}/>;
+  if(view==="shop") return <ShopScreen prog={prog} setProg={setProg} onBack={()=>setView("menu")}/>;
+  if(view==="play"&&puzzle) return <PlayScreen
+    prog={prog} chapter={chapter} lvIdx={lvIdx} puzzle={puzzle}
+    selCells={selCells} found={found} foundH={foundH}
+    timeLeft={timeLeft} status={status} combo={combo} comboTxt={comboTxt}
+    skin={skin} isDaily={isDaily} stars={stars} mistakes={mistakes}
+    floatCoins={floatCoins} dragging={dragging}
+    onDown={onDown} onEnter={onEnter} onUp={onUp}
+    onBoost={useBoost} onRetry={()=>startLevel(chapter,lvIdx,isDaily)}
+    onNext={goNext} onMenu={()=>setView("menu")} onMap={()=>setView("map")}/>;
+  return null;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// ENDLESS SETUP SCREEN
+// ════════════════════════════════════════════════════════════════════════════════
+function EndlessSetupScreen({leaderboard,endlessNames,setEndlessNames,onStart,onBack}){
+  const [editingName,setEditingName]=useState(null); // "p1"|"p2"|null
+  const [nameInput,setNameInput]=useState("");
+  const lb=leaderboard;
+
+  function saveEdit(){
+    if(!nameInput.trim()) return;
+    setEndlessNames({...endlessNames,[editingName]:nameInput.trim().slice(0,12)});
+    setEditingName(null);
+  }
+
+  const tiers=ENDLESS_TIERS;
+
+  return(
+    <div className="screen-fill overflow-y-auto" style={{background:"linear-gradient(160deg,#0d0820,#1a0b2e,#0f0f1a)"}}>
+      <style>{CSS+`
+        @keyframes infiniteSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes fadeSlide{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+      `}</style>
+      <div className="game-root">
+        <div className="game-sidebar-l hidden md:block"/>
+        <div className="game-container px-4 py-6 gap-4 overflow-y-auto">
+
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <button onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center text-white shrink-0"
+              style={{background:"rgba(255,255,255,0.1)"}}>←</button>
+            <div className="flex items-center gap-2">
+              <span style={{fontSize:28,animation:"infiniteSpin 8s linear infinite",display:"inline-block"}}>♾️</span>
+              <div>
+                <h2 className="text-white font-black text-lg leading-tight">Endless Mode</h2>
+                <p className="text-white/40 text-xs">Survive as many waves as you can</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Difficulty roadmap */}
+          <div className="rounded-2xl p-3" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
+            <p className="text-white/50 text-xs font-bold mb-2 tracking-widest uppercase">Difficulty Tiers</p>
+            <div className="flex flex-col gap-1.5">
+              {tiers.map(t=>(
+                <div key={t.name} className="flex items-center gap-2 px-2 py-1.5 rounded-xl"
+                  style={{background:`${t.color}12`,border:`1px solid ${t.color}30`}}>
+                  <span style={{fontSize:16}}>{t.emoji}</span>
+                  <span className="font-black text-sm" style={{color:t.color,minWidth:60}}>{t.name}</span>
+                  <span className="text-white/40 text-xs">Wave {t.waves[0]}–{t.waves[1]===99?"∞":t.waves[1]}</span>
+                  <span className="ml-auto text-xs font-bold" style={{color:t.color}}>+{t.bonus}🪙/wave</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Leaderboard */}
+          <div className="rounded-2xl p-3" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
+            <p className="text-white/50 text-xs font-bold mb-3 tracking-widest uppercase">🏆 Leaderboard</p>
+            {["p1","p2"].map(pid=>{
+              const p=lb[pid];
+              const isP1=pid==="p1";
+              const color=isP1?"#6366f1":"#f97316";
+              return(
+                <div key={pid} className="mb-3 rounded-2xl p-3" style={{background:`${color}12`,border:`1.5px solid ${color}33`}}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span style={{fontSize:20}}>{isP1?"👤":"👥"}</span>
+                    {editingName===pid?(
+                      <div className="flex gap-1.5 flex-1">
+                        <input value={nameInput} onChange={e=>setNameInput(e.target.value)}
+                          onKeyDown={e=>e.key==="Enter"&&saveEdit()}
+                          className="flex-1 px-2 py-1 rounded-lg text-white font-bold text-sm"
+                          style={{background:"rgba(255,255,255,0.12)",border:`1px solid ${color}`,outline:"none"}}
+                          maxLength={12} autoFocus/>
+                        <button onClick={saveEdit} className="px-2 py-1 rounded-lg text-white font-bold text-xs"
+                          style={{background:color}}>✓</button>
+                      </div>
+                    ):(
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="font-black text-white">{endlessNames[pid]}</span>
+                        <button onClick={()=>{setEditingName(pid);setNameInput(endlessNames[pid]);}}
+                          className="text-white/40 text-xs hover:text-white/70">✏️</button>
+                      </div>
+                    )}
+                    <div className="text-right">
+                      <div className="font-black text-base" style={{color}}>{p.best} waves</div>
+                      <div className="text-white/30 text-xs">best</div>
+                    </div>
+                  </div>
+                  {/* History */}
+                  {p.history&&p.history.length>0&&(
+                    <div className="flex gap-1 flex-wrap">
+                      {[...p.history].reverse().slice(0,5).map((h,i)=>(
+                        <div key={i} className="px-2 py-0.5 rounded-full text-xs"
+                          style={{background:`${color}22`,color}}>
+                          {h.waves}w · {h.coins}🪙
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Start buttons */}
+          <div className="flex flex-col gap-2.5">
+            {["p1","p2"].map(pid=>{
+              const isP1=pid==="p1";
+              const color=isP1?"#6366f1":"#f97316";
+              return(
+                <button key={pid} onClick={()=>onStart(pid)}
+                  className="py-4 rounded-2xl font-black text-white text-base relative overflow-hidden"
+                  style={{background:`linear-gradient(135deg,${isP1?"#312e81,#4338ca":"#7c2d12,#ea580c"})`,
+                    boxShadow:`0 4px 24px ${color}44`}}>
+                  {isP1?"👤":"👥"} {endlessNames[pid]} — Start Endless
+                </button>
+              );
+            })}
+          </div>
+
+        </div>
+        <div className="game-sidebar-r hidden md:block"/>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// ENDLESS PLAY SCREEN
+// ════════════════════════════════════════════════════════════════════════════════
+function EndlessScreen({
+  puzzle,endlessWave,endlessScore,endlessStatus,endlessPlayer,
+  leaderboard,endlessNames,prog,chapter,
+  selCells,found,foundH,timeLeft,status,combo,comboTxt,
+  skin,stars,mistakes,floatCoins,dragging,
+  onDown,onEnter,onUp,onBoost,onNextWave,onQuit,onRetry
+}){
+  const tier=getEndlessTier(endlessWave);
+  const pct=timeLeft/puzzle.time;
+  const fs=Math.max(12,22-puzzle.size);
+  const isBossWave=endlessWave%5===0;
+  const waveWon=endlessStatus==="waveWon";
+  const gameOver=endlessStatus==="gameover";
+  const playerName=endlessNames[endlessPlayer];
+  const playerColor=endlessPlayer==="p1"?"#6366f1":"#f97316";
+
+  // Cell map
+  const cellMap=useMemo(()=>{
+    const m={};
+    for(const [w,info] of Object.entries(found)){
+      for(const [r,c] of info.cells) m[`${r}-${c}`]={bg:info.color+"55",text:"#fff",fw:"900",shadow:`0 0 8px ${info.color}`};
+    }
+    for(const w of foundH){
+      const info=found[w]||{cells:[]};
+      for(const [r,c] of (puzzle.placed[w]||[])) m[`${r}-${c}`]={bg:"#fbbf2455",text:"#fff",fw:"900",shadow:"0 0 8px #fbbf24"};
+    }
+    for(const [r,c] of selCells){
+      const k=`${r}-${c}`;
+      if(!m[k]) m[k]= dragging
+        ? {bg:skin.sel+"ee",text:"#111",fw:"900",shadow:`0 0 12px ${skin.sel}`}
+        : {bg:"#ffd700",text:"#111",fw:"900",shadow:"0 0 20px #ffd700, 0 0 6px #fff8"};
+    }
+    return m;
+  },[found,foundH,selCells,puzzle.placed,skin,dragging]);
+
+  const defStyle={bg:"rgba(255,255,255,0.09)",text:"#ffffff",fw:"700",shadow:"none"};
+
+  const rafRef=useRef(null);
+  const lastCell=useRef("");
+  function handleTouchMove(e){
+    e.preventDefault();
+    if(rafRef.current) return;
+    rafRef.current=requestAnimationFrame(()=>{
+      rafRef.current=null;
+      const t=e.touches[0];
+      const el=document.elementFromPoint(t.clientX,t.clientY);
+      const r=el?.dataset?.r, c=el?.dataset?.c;
+      if(r===undefined) return;
+      const k=`${r}-${c}`;
+      if(k===lastCell.current) return;
+      lastCell.current=k;
+      onEnter(+r,+c);
+    });
+  }
+  const lastMouseCell=useRef("");
+  function handleMouseEnter(r,c){
+    const k=`${r}-${c}`;
+    if(k===lastMouseCell.current) return;
+    lastMouseCell.current=k;
+    onEnter(r,c);
+  }
+  function handleMouseDown(r,c){lastMouseCell.current=`${r}-${c}`;lastCell.current=`${r}-${c}`;onDown(r,c);}
+
+  return(
+    <div className="screen-fill" style={{background:`linear-gradient(160deg,#0d0820 0%,#1a0b2e 60%,#0a0a14 100%)`}}>
+      <style>{CSS}</style>
+
+      {/* Floating coins */}
+      <div className="absolute top-20 right-5 z-50 pointer-events-none flex flex-col gap-1 items-end">
+        {floatCoins.map(f=>(
+          <div key={f.id} className="text-yellow-400 font-black text-base" style={{animation:"coinUp 1.4s ease-out forwards"}}>+{f.amt}🪙</div>
+        ))}
+      </div>
+      {comboTxt&&<div className="absolute top-1/3 left-1/2 -translate-x-1/2 z-50 pointer-events-none font-black text-2xl text-orange-400"
+        style={{textShadow:"0 0 20px #f97316",animation:"popIn 0.35s ease-out"}}>{comboTxt}</div>}
+
+      {/* WAVE WON OVERLAY */}
+      {waveWon&&(
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 px-6"
+          style={{background:"rgba(0,0,0,0.75)",animation:"popIn 0.3s ease-out"}}>
+          <div style={{fontSize:isBossWave?64:52,animation:"float 2s ease-in-out infinite",
+            filter:`drop-shadow(0 0 20px ${tier.color})`}}>
+            {isBossWave?"👑":"✅"}
+          </div>
+          <div className="text-center">
+            <div className="font-black text-white" style={{fontSize:28,textShadow:`0 0 20px ${tier.color}`}}>
+              {isBossWave?"BOSS CLEARED!":"Wave Clear!"}
+            </div>
+            <div className="text-white/60 text-sm mt-1">Wave {endlessWave} — {tier.emoji} {tier.name}</div>
+          </div>
+          {/* Stats */}
+          <div className="flex gap-3 w-full max-w-xs">
+            {[
+              {l:"Wave",v:endlessWave,e:"🌊"},
+              {l:"Total",v:`${endlessScore}🪙`,e:"💰"},
+              {l:"Tier",v:tier.name,e:tier.emoji},
+            ].map(({l,v,e})=>(
+              <div key={l} className="flex-1 rounded-2xl p-3 text-center"
+                style={{background:`${tier.color}18`,border:`1px solid ${tier.color}44`}}>
+                <div className="text-lg">{e}</div>
+                <div className="font-black text-white text-sm">{v}</div>
+                <div className="text-white/40 text-xs">{l}</div>
+              </div>
+            ))}
+          </div>
+          {/* Next wave preview */}
+          {(()=>{
+            const nextTier=getEndlessTier(endlessWave+1);
+            const isUpgrade=nextTier.name!==tier.name;
+            return(
+              <div className="w-full max-w-xs rounded-2xl p-3 text-center"
+                style={{background:isUpgrade?`${nextTier.color}22`:"rgba(255,255,255,0.06)",
+                  border:`1px solid ${isUpgrade?nextTier.color:"rgba(255,255,255,0.1)"}`}}>
+                {isUpgrade&&<div className="font-black text-xs mb-1" style={{color:nextTier.color}}>⬆ TIER UP — {nextTier.name}!</div>}
+                <div className="text-white/60 text-xs">Next: Wave {endlessWave+1} · {nextTier.emoji} · {puzzle.size+1||puzzle.size}×{puzzle.size+1||puzzle.size} grid</div>
+              </div>
+            );
+          })()}
+          <button onClick={onNextWave}
+            className="w-full max-w-xs py-4 rounded-2xl font-black text-white text-lg"
+            style={{background:`linear-gradient(135deg,${tier.color},${tier.color}aa)`,
+              boxShadow:`0 4px 24px ${tier.color}55`,animation:"glow 2s ease-in-out infinite"}}>
+            Wave {endlessWave+1} →
+          </button>
+          <button onClick={onQuit} className="text-white/40 text-sm font-bold">✕ End Run & Save Score</button>
+        </div>
+      )}
+
+      {/* GAME OVER OVERLAY */}
+      {gameOver&&(
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 px-6"
+          style={{background:"rgba(0,0,0,0.85)",animation:"popIn 0.3s ease-out"}}>
+          <div style={{fontSize:60,filter:"drop-shadow(0 0 20px #ef4444)",animation:"shake 0.5s ease-out"}}>💀</div>
+          <div className="text-center">
+            <div className="font-black text-white text-3xl" style={{textShadow:"0 0 20px #ef4444"}}>GAME OVER</div>
+            <div className="text-white/50 text-sm mt-1">Time ran out on Wave {endlessWave}</div>
+          </div>
+          {/* Final stats */}
+          <div className="w-full max-w-xs rounded-2xl p-4"
+            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)"}}>
+            <div className="text-center mb-3">
+              <div className="font-black text-white text-xl">{playerName}</div>
+              <div className="text-white/50 text-xs" style={{color:playerColor}}>
+                {endlessPlayer==="p1"?"👤":"👥"} {endlessPlayer.toUpperCase()}
+              </div>
+            </div>
+            <div className="flex gap-3">
+              {[
+                {l:"Waves",v:endlessWave-1,e:"🌊"},
+                {l:"Coins",v:endlessScore,e:"🪙"},
+                {l:"Tier",v:tier.name,e:tier.emoji},
+              ].map(({l,v,e})=>(
+                <div key={l} className="flex-1 text-center">
+                  <div className="text-lg">{e}</div>
+                  <div className="font-black text-white">{v}</div>
+                  <div className="text-white/40 text-xs">{l}</div>
+                </div>
+              ))}
+            </div>
+            {/* vs best */}
+            {(()=>{
+              const best=leaderboard[endlessPlayer]?.best||0;
+              const waves=endlessWave-1;
+              const isNew=waves>=best&&waves>0;
+              return isNew?(
+                <div className="mt-2 text-center font-black text-sm" style={{color:"#fbbf24"}}>🏆 NEW BEST RECORD!</div>
+              ):(
+                <div className="mt-2 text-center text-white/40 text-xs">Best: {best} waves</div>
+              );
+            })()}
+          </div>
+          {/* Leaderboard mini */}
+          <div className="w-full max-w-xs rounded-2xl p-3" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
+            <p className="text-white/50 text-xs font-bold mb-2 tracking-widest uppercase">Rankings</p>
+            {["p1","p2"].sort((a,b)=>(leaderboard[b]?.best||0)-(leaderboard[a]?.best||0)).map((pid,rank)=>{
+              const p=leaderboard[pid];
+              const c=pid==="p1"?"#6366f1":"#f97316";
+              const isCurrent=pid===endlessPlayer;
+              return(
+                <div key={pid} className="flex items-center gap-2 py-1.5 rounded-xl px-2 mb-1"
+                  style={{background:isCurrent?`${c}22`:"transparent",border:isCurrent?`1px solid ${c}44`:"1px solid transparent"}}>
+                  <span className="font-black text-white/60 w-5 text-center">{rank+1}</span>
+                  <span className="font-bold text-white flex-1">{endlessNames[pid]}</span>
+                  <span className="font-black text-sm" style={{color:c}}>{p.best} waves</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex gap-3 w-full max-w-xs">
+            <button onClick={onRetry} className="flex-1 py-3.5 rounded-2xl font-black text-white"
+              style={{background:`linear-gradient(135deg,${playerColor},${playerColor}99)`,boxShadow:`0 4px 20px ${playerColor}44`}}>
+              🔄 Retry
+            </button>
+            <button onClick={onQuit} className="flex-1 py-3.5 rounded-2xl font-bold text-white"
+              style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)"}}>
+              🏠 Menu
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="game-root">
+        <div className="game-sidebar-l hidden md:block"/>
+        <div className="game-container">
+
+          {/* Header */}
+          <div className="flex items-center gap-2 px-3 pb-1"
+            style={{paddingTop:"max(12px,env(safe-area-inset-top,12px))"}}>
+            <button onClick={onQuit}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white shrink-0"
+              style={{background:"rgba(255,255,255,0.1)"}}>✕</button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span style={{fontSize:14}}>{tier.emoji}</span>
+                <span className="font-black text-white text-sm">{tier.name}</span>
+                <span className="px-1.5 py-0.5 rounded-full text-white font-black"
+                  style={{fontSize:10,background:tier.color}}>
+                  {isBossWave?"👑 BOSS":"Wave "+endlessWave}
+                </span>
+                {combo>1&&<span className="px-1.5 py-0.5 rounded-full font-black text-white"
+                  style={{fontSize:10,background:"#f97316"}}>🔥×{combo}</span>}
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span style={{fontSize:10,color:playerColor}}>
+                  {endlessPlayer==="p1"?"👤":"👥"} {playerName}
+                </span>
+                <span className="text-white/30 text-xs">·</span>
+                <span className="text-white/40 text-xs">{puzzle.size}×{puzzle.size}</span>
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full shrink-0"
+                style={{background:"rgba(255,255,255,0.1)"}}>
+                <span style={{fontSize:12}}>🪙</span>
+                <span className="text-white font-black text-sm">{prog.coins.toLocaleString()}</span>
+              </div>
+              <div className="text-xs font-bold" style={{color:tier.color}}>+{endlessScore} run</div>
+            </div>
+          </div>
+
+          {/* Timer */}
+          <div className="mx-3 mb-1">
+            <div className="flex justify-between text-xs mb-1" style={{color:"rgba(255,255,255,0.45)"}}>
+              <span style={{animation:timeLeft<=10?"pulse 0.8s ease-in-out infinite":""}}>{timeLeft<=10?"⚠️":""} {timeLeft}s</span>
+              <span>{Object.keys(found).length}/{puzzle.visible.length} words</span>
+            </div>
+            <div className="rounded-full h-2.5 overflow-hidden" style={{background:"rgba(255,255,255,0.1)"}}>
+              <div className="h-full rounded-full transition-all duration-1000" style={{
+                width:`${pct*100}%`,
+                background:pct>0.5?tier.color:pct>0.25?"#f97316":"#ef4444",
+                boxShadow:pct<=0.25?"0 0 8px #ef444488":""
+              }}/>
+            </div>
+          </div>
+
+          {/* Grid */}
+          <div className="grid-wrap" onMouseUp={onUp} onTouchEnd={onUp} onTouchMove={handleTouchMove} style={{touchAction:"none"}}>
+            <div style={{
+              display:"grid",gridTemplateColumns:`repeat(${puzzle.size},1fr)`,
+              gap:puzzle.size>=9?"2px":puzzle.size>=7?"3px":"4px",userSelect:"none",
+              width:"min(96vw, calc(100svh - 230px))",maxWidth:"520px",aspectRatio:"1",
+              padding:puzzle.size>=8?"6px":"10px",borderRadius:"20px",
+              background:`${tier.color}16`,
+              border:isBossWave?`2px solid ${tier.color}`:`1px solid ${tier.color}33`,
+              boxShadow:isBossWave?`0 0 40px ${tier.color}55`:`0 0 20px ${tier.color}22`,
+            }}>
+              {puzzle.grid.map((row,r)=>row.map((letter,c)=>{
+                const s=cellMap[`${r}-${c}`]||defStyle;
+                return(
+                  <div key={`${r}-${c}`} data-r={r} data-c={c}
+                    onMouseDown={()=>handleMouseDown(r,c)}
+                    onMouseEnter={()=>handleMouseEnter(r,c)}
+                    onTouchStart={e=>{e.preventDefault();handleMouseDown(r,c);}}
+                    className="flex items-center justify-center select-none cursor-pointer"
+                    style={{background:s.bg,color:s.text,fontWeight:s.fw,
+                      fontSize:fs,aspectRatio:"1",borderRadius:"6px",
+                      boxShadow:s.shadow,transition:"background 0.08s,box-shadow 0.08s"}}>
+                    {letter}
+                  </div>
+                );
+              }))}
+            </div>
+          </div>
+
+          {/* Words + Boosts */}
+          <div className="px-3 pb-2">
+            <div className="flex flex-wrap gap-1.5 justify-center mb-2">
+              {puzzle.visible.map(w=>{
+                const f=found[w];
+                return(
+                  <span key={w} className="px-2.5 py-1 rounded-full text-xs font-bold transition-all"
+                    style={{
+                      background:f?f.color+"33":"rgba(255,255,255,0.08)",
+                      color:f?f.color:"rgba(255,255,255,0.5)",
+                      border:`1.5px solid ${f?f.color:"rgba(255,255,255,0.12)"}`,
+                      textDecoration:f?"line-through":"none",
+                      boxShadow:f?`0 0 8px ${f.color}55`:"",
+                    }}>{w}</span>
+                );
+              })}
+            </div>
+            <div className="flex gap-2.5 justify-center">
+              {[
+                {type:"time",icon:"⏱",label:"+10s",cost:TIME_COST,disabled:prog.coins<TIME_COST,color:"#3b82f6"},
+                {type:"hint",icon:"💡",label:"Hint",cost:HINT_COST,disabled:prog.coins<HINT_COST,color:"#a855f7"},
+              ].map(({type,icon,label,cost,disabled,color})=>(
+                <button key={type} onClick={disabled?undefined:()=>onBoost(type)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-2xl font-bold text-sm"
+                  style={{
+                    background:disabled?`rgba(255,255,255,0.04)`:`${color}22`,
+                    border:`1.5px solid ${disabled?"rgba(255,255,255,0.06)":`${color}55`}`,
+                    color:disabled?"rgba(255,255,255,0.25)":color,
+                    cursor:disabled?"not-allowed":"pointer",
+                    boxShadow:disabled?"none":`0 2px 12px ${color}33`,
+                  }}>
+                  <span style={{fontSize:16}}>{icon}</span>
+                  <span>{label}</span>
+                  <span style={{fontSize:11,opacity:disabled?0.5:0.8}}>🪙{cost}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+        </div>
+        <div className="game-sidebar-r hidden md:block"/>
+      </div>
+    </div>
+  );
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════════
+// SCREENS
+// ════════════════════════════════════════════════════════════════════════════════
+
+const CSS = `
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  @keyframes glow{0%,100%{box-shadow:0 0 15px #7c3aed55}50%{box-shadow:0 0 35px #a855f7aa}}
+  @keyframes popIn{0%{transform:scale(0.6);opacity:0}80%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+  @keyframes starPop{0%{transform:scale(0) rotate(-20deg);opacity:0}60%{transform:scale(1.3) rotate(8deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+  @keyframes coinUp{from{transform:translateY(0);opacity:1}to{transform:translateY(-55px);opacity:0}}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+  @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+  @keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+  *{box-sizing:border-box;}
+  html,body,#root{margin:0;padding:0;width:100%;height:100%;overflow:hidden;}
+  .screen-fill{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;}
+  .game-root{display:flex;flex-direction:column;width:100%;height:100%;overflow:hidden;}
+  .game-container{display:flex;flex-direction:column;flex:1 1 0;min-height:0;width:100%;overflow:hidden;}
+  .grid-wrap{display:flex;align-items:center;justify-content:center;flex:1 1 0;min-height:0;padding:0 4px;}
+  @media(min-width:768px){
+    .game-root{display:grid;grid-template-columns:1fr min(600px,90vw) 1fr;}
+    .game-sidebar-l,.game-sidebar-r{background:rgba(0,0,0,0.3);}
+    .game-container{max-width:640px;margin:0 auto;border-left:1px solid rgba(255,255,255,0.08);border-right:1px solid rgba(255,255,255,0.08);}
+  }
+`;
+
+function BootScreen(){
+  return(
+    <div className="screen-fill flex items-center justify-center"
+      style={{background:"linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%)"}}>
+      <style>{CSS + `
+        @keyframes tileIn{0%{transform:scale(0) rotate(-15deg);opacity:0}70%{transform:scale(1.1) rotate(3deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+        @keyframes titleIn{0%{letter-spacing:0.5em;opacity:0}100%{letter-spacing:0.05em;opacity:1}}
+        @keyframes dotPulse{0%,100%{transform:scale(0.6);opacity:0.3}50%{transform:scale(1);opacity:1}}
+      `}</style>
+
+      <div className="flex flex-col items-center gap-6">
+        {/* Logo: 2-row tiles spelling W·Q */}
+        <div className="relative">
+          {/* Glow behind logo */}
+          <div className="absolute inset-0 rounded-3xl" style={{
+            background:"radial-gradient(circle,#7c3aed55 0%,transparent 70%)",
+            filter:"blur(20px)", transform:"scale(1.5)"
+          }}/>
+        {/* Crown above logo */}
+        <div style={{fontSize:48, textAlign:"center", animation:"tileIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both",
+          filter:"drop-shadow(0 0 16px #fbbf24) drop-shadow(0 4px 8px #92400e88)"}}>
+          👑
+        </div>
+        {/* 4-tile row: W O R D */}
+          <div className="flex gap-2 mb-2">
+            {["W","O","R","D"].map((l,i)=>(
+              <div key={l} className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-2xl text-white relative"
+                style={{
+                  background:`linear-gradient(135deg,${["#7c3aed","#6d28d9","#5b21b6","#4c1d95"][i]},${["#a855f7","#9333ea","#7c3aed","#6d28d9"][i]})`,
+                  boxShadow:`0 8px 25px ${["#7c3aed","#6d28d9","#5b21b6","#4c1d95"][i]}88`,
+                  animation:`tileIn 0.5s cubic-bezier(0.34,1.56,0.64,1) ${i*0.08}s both`,
+                }}>
+                {l}
+              </div>
+            ))}
+          </div>
+          {/* 5-tile row: Q U E S T */}
+          <div className="flex gap-2">
+            {["Q","U","E","S","T"].map((l,i)=>(
+              <div key={l} className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-2xl text-white"
+                style={{
+                  background:`linear-gradient(135deg,${["#2563eb","#1d4ed8","#1e40af","#1e3a8a","#1e3a8a"][i]},${["#3b82f6","#2563eb","#1d4ed8","#1e40af","#1e3a8a"][i]})`,
+                  boxShadow:`0 8px 25px ${["#2563eb","#1d4ed8","#1e40af","#1e3a8a","#1e3a8a"][i]}88`,
+                  animation:`tileIn 0.5s cubic-bezier(0.34,1.56,0.64,1) ${0.32+i*0.08}s both`,
+                }}>
+                {l}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Title text */}
+        <div style={{animation:"titleIn 0.8s ease-out 0.9s both"}}>
+          <div className="font-black text-white tracking-wide text-center" style={{
+            fontSize:28,
+            textShadow:"0 0 30px #7c3aed, 0 0 60px #a855f755"
+          }}>
+            WORD<span style={{color:"#a855f7"}}>QUEST</span>
+          </div>
+          <div className="text-center text-xs font-bold tracking-widest mt-1" style={{color:"#a78bfa"}}>
+            PUZZLE ADVENTURE
+          </div>
+        </div>
+
+        {/* Loading dots */}
+        <div className="flex gap-2">
+          {[0,1,2,3].map(i=>(
+            <div key={i} className="w-2.5 h-2.5 rounded-full"
+              style={{
+                background:["#7c3aed","#a855f7","#6d28d9","#2563eb"][i],
+                animation:`dotPulse 1.2s ease-in-out ${i*0.15}s infinite`
+              }}/>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MenuScreen({prog,showStreak,onStreakClose,onPlay,onShop,onDaily,dailyDone,onEndless,musicOn,onToggleMusic}){
+  const totalStars=Object.values(prog.stars).reduce((a,b)=>a+b,0);
+  const totalLevels=CHAPTERS.reduce((a,c)=>a+(PREDEFINED[c.id]||[]).length,0);
+  const completedLevels=CHAPTERS.reduce((a,c)=>a+(PREDEFINED[c.id]||[]).filter((_,li)=>(prog.stars[lvKey(c.id,li)]||0)>0).length,0);
+  const progressPct=Math.round((completedLevels/totalLevels)*100);
+  return(
+    <div className="screen-fill overflow-hidden" style={{background:"linear-gradient(160deg,#0d0820 0%,#1a0b2e 40%,#0f0f1a 100%)"}}>
+      <style>{CSS+`
+        @keyframes menuStarTwinkle{0%,100%{opacity:0.1;transform:scale(0.8)}50%{opacity:0.7;transform:scale(1.2)}}
+        @keyframes menuGlow{0%,100%{box-shadow:0 0 30px #7c3aed66,0 8px 32px #7c3aed44}50%{box-shadow:0 0 55px #a855f799,0 8px 40px #7c3aed66}}
+        @keyframes slideInUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes pulseRing{0%{box-shadow:0 0 0 0 #7c3aed55}70%{box-shadow:0 0 0 14px transparent}100%{box-shadow:0 0 0 0 transparent}}
+        .menu-btn-play{transition:transform 0.15s,box-shadow 0.15s;}
+        .menu-btn-play:active{transform:scale(0.96);}
+        .menu-btn-sec{transition:background 0.2s,transform 0.15s;}
+        .menu-btn-sec:active{transform:scale(0.96);}
+      `}</style>
+
+      {/* Starfield */}
+      {Array.from({length:30}).map((_,i)=>(
+        <div key={i} className="absolute rounded-full bg-white" style={{
+          width:i%5===0?3:i%3===0?2:1.5,
+          height:i%5===0?3:i%3===0?2:1.5,
+          top:`${(i*37+11)%100}%`,left:`${(i*61+7)%100}%`,
+          animation:`menuStarTwinkle ${2+i%4}s ease-in-out ${i*0.18}s infinite`
+        }}/>
+      ))}
+
+      {/* Nebula bg blobs */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute rounded-full" style={{width:320,height:320,top:"5%",left:"-10%",background:"radial-gradient(circle,#7c3aed18 0%,transparent 70%)",filter:"blur(40px)"}}/>
+        <div className="absolute rounded-full" style={{width:240,height:240,top:"55%",right:"-8%",background:"radial-gradient(circle,#2563eb18 0%,transparent 70%)",filter:"blur(35px)"}}/>
+        <div className="absolute rounded-full" style={{width:180,height:180,top:"35%",left:"60%",background:"radial-gradient(circle,#a855f714 0%,transparent 70%)",filter:"blur(28px)"}}/>
+      </div>
+
+      {/* Music toggle */}
+      <button onClick={onToggleMusic}
+        className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg"
+        style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",backdropFilter:"blur(8px)"}}>
+        {musicOn?"🔊":"🔇"}
+      </button>
+
+      {/* Streak popup */}
+      {showStreak&&(
+        <div onClick={onStreakClose} className="absolute top-12 left-1/2 z-50 -translate-x-1/2 cursor-pointer"
+          style={{animation:"popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)"}}>
+          <div className="px-5 py-3 rounded-2xl text-center"
+            style={{background:"linear-gradient(135deg,#f97316,#fbbf24)",boxShadow:"0 0 35px #f9731677,0 4px 24px #f9731644"}}>
+            <div className="text-white font-black text-base">🔥 Day {prog.streak} Streak!</div>
+            <div className="text-white/80 text-xs mt-0.5">+{STREAK_R[Math.min(prog.streak-1,6)]} coins · tap to close</div>
+          </div>
+        </div>
+      )}
+
+      <div className="game-root">
+        <div className="game-sidebar-l hidden md:block"/>
+        <div className="game-container relative z-10 overflow-y-auto" style={{scrollbarWidth:"none"}}>
+          <div className="flex flex-col items-center px-4 py-4 gap-3 w-full max-w-sm mx-auto">
+
+          {/* ── TOP: Logo section — compact */}
+          <div className="flex flex-col items-center gap-2" style={{animation:"slideInUp 0.6s cubic-bezier(0.34,1.56,0.64,1) both"}}>
+            {/* Crown */}
+            <div style={{fontSize:36,lineHeight:1,animation:"float 3s ease-in-out infinite",
+              filter:"drop-shadow(0 0 18px #fbbf24) drop-shadow(0 4px 10px #92400e88)"}}>👑</div>
+
+            {/* Tile logo — smaller */}
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex gap-1.5">
+                {["W","O","R","D"].map((l,i)=>(
+                  <div key={l} className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-base text-white"
+                    style={{
+                      background:`linear-gradient(145deg,${["#7c3aed","#6d28d9","#5b21b6","#4c1d95"][i]},${["#a855f7","#9333ea","#7c3aed","#6d28d9"][i]})`,
+                      boxShadow:`0 4px 14px ${["#7c3aed","#6d28d9","#5b21b6","#4c1d95"][i]}99`,
+                    }}>{l}</div>
+                ))}
+              </div>
+              <div className="flex gap-1.5">
+                {["Q","U","E","S","T"].map((l,i)=>(
+                  <div key={l} className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-base text-white"
+                    style={{
+                      background:`linear-gradient(145deg,${["#2563eb","#1d4ed8","#1e40af","#1e3a8a","#172554"][i]},${["#3b82f6","#2563eb","#1d4ed8","#1e40af","#1e3a8a"][i]})`,
+                      boxShadow:`0 4px 14px ${["#2563eb","#1d4ed8","#1e40af","#1e3a8a","#1e3a8a"][i]}99`,
+                    }}>{l}</div>
+                ))}
+              </div>
+            </div>
+
+            {/* Title */}
+            <div className="text-center">
+              <h1 className="font-black text-white tracking-wide" style={{fontSize:22,
+                textShadow:"0 0 30px #7c3aed,0 0 60px #a855f755"}}>
+                WORD<span style={{color:"#a855f7"}}>QUEST</span>
+              </h1>
+            </div>
+          </div>
+
+          {/* ── MIDDLE: Stats bar — compact */}
+          <div className="w-full" style={{animation:"slideInUp 0.5s ease-out 0.5s both"}}>
+            {/* Overall progress bar */}
+            <div className="mb-2 px-3 py-2 rounded-xl" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)"}}>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-white/60 font-semibold">Overall Progress</span>
+                <span className="font-black" style={{color:"#a855f7"}}>{completedLevels}/{totalLevels} · {progressPct}%</span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{background:"rgba(255,255,255,0.08)"}}>
+                <div className="h-full rounded-full" style={{width:`${progressPct}%`,
+                  background:"linear-gradient(90deg,#7c3aed,#a855f7,#ec4899)",transition:"width 1s ease-out"}}/>
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                {e:"🪙",v:prog.coins.toLocaleString(),l:"Coins",   c:"#fbbf24",bg:"rgba(251,191,36,0.1)", border:"rgba(251,191,36,0.2)"},
+                {e:"🔥",v:`Day ${prog.streak}`,l:"Streak", c:"#f97316",bg:"rgba(249,115,22,0.1)", border:"rgba(249,115,22,0.2)"},
+                {e:"⭐",v:totalStars,l:"Stars",   c:"#fbbf24",bg:"rgba(251,191,36,0.08)",border:"rgba(251,191,36,0.15)"},
+              ].map(({e,v,l,c,bg,border})=>(
+                <div key={l} className="rounded-xl p-2 text-center flex flex-col gap-0.5"
+                  style={{background:bg,border:`1px solid ${border}`}}>
+                  <div className="text-sm" style={{lineHeight:1}}>{e}</div>
+                  <div className="font-black text-xs leading-tight" style={{color:c}}>{v}</div>
+                  <div className="text-white/40 font-semibold" style={{fontSize:9}}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── BOTTOM: Action buttons */}
+          <div className="flex flex-col gap-2.5 w-full" style={{animation:"slideInUp 0.5s ease-out 0.65s both"}}>
+            {/* Main PLAY button */}
+            <button onClick={onPlay} className="menu-btn-play relative overflow-hidden py-4 rounded-2xl font-black text-lg text-white"
+              style={{background:"linear-gradient(135deg,#6d28d9,#7c3aed,#a855f7)",animation:"menuGlow 2.5s ease-in-out infinite"}}>
+              <div className="absolute inset-0 pointer-events-none" style={{
+                background:"linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.12) 50%,transparent 60%)",
+                backgroundSize:"200% 100%",animation:"shimmer 2.5s ease-in-out infinite"
+              }}/>
+              <span style={{textShadow:"0 2px 12px rgba(0,0,0,0.4)",letterSpacing:"0.05em"}}>▶  PLAY</span>
+            </button>
+
+            {/* Daily Challenge */}
+            <button onClick={dailyDone?undefined:onDaily} className="menu-btn-sec py-3 rounded-2xl font-bold text-white text-sm relative overflow-hidden"
+              style={{
+                background: dailyDone?"rgba(255,255,255,0.06)":"linear-gradient(135deg,#ea580c,#f59e0b)",
+                border: dailyDone?"1px solid rgba(255,255,255,0.1)":"none",
+                cursor: dailyDone?"default":"pointer",
+                opacity: dailyDone?0.55:1,
+                boxShadow: dailyDone?"none":"0 4px 20px #f9731655"
+              }}>
+              {dailyDone?"✅  Daily Done — Come Back Tomorrow":"📅  Daily Challenge  ·  +200 🪙"}
+            </button>
+
+            {/* Secondary buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={onPlay} className="menu-btn-sec py-3 rounded-2xl font-bold text-white text-sm flex items-center justify-center gap-1.5"
+                style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)"}}>
+                <span>🗺️</span><span>Map</span>
+              </button>
+              <button onClick={onShop} className="menu-btn-sec py-3 rounded-2xl font-bold text-white text-sm flex items-center justify-center gap-1.5"
+                style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)"}}>
+                <span>🎨</span><span>Skins</span>
+              </button>
+            </div>
+
+            {/* Endless Mode button */}
+            <button onClick={onEndless} className="menu-btn-sec py-3 rounded-2xl font-bold text-white text-sm flex items-center justify-center gap-2 relative overflow-hidden"
+              style={{background:"linear-gradient(135deg,#1e1b4b,#312e81)",border:"1.5px solid #6366f1",boxShadow:"0 0 18px #6366f133"}}>
+              <span style={{fontSize:16}}>♾️</span>
+              <span style={{letterSpacing:"0.04em"}}>ENDLESS MODE</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded-full text-white font-black"
+                style={{fontSize:9,background:"#6366f1",letterSpacing:"0.05em"}}>NEW</span>
+            </button>
+          </div>
+
+          </div>{/* end inner flex col */}
+        </div>
+        <div className="game-sidebar-r hidden md:block"/>
+      </div>
+    </div>
+  );
+}
+
+function MapScreen({prog,onSelect,onBack}){
+  const [selCh,setSelCh]=useState(0);
+  const ch=CHAPTERS[selCh];
+  function getStars(cid,li){return prog.stars[lvKey(cid,li)]||0;}
+  function isUnlocked(cid,li){return !!prog.unlocked[lvKey(cid,li)];}
+
+  return(
+    <div className="screen-fill" style={{background:"linear-gradient(160deg,#1a0b2e,#0f0f1a)"}}>
+      <style>{CSS}</style>
+      <div className="game-root">
+        <div className="game-sidebar-l hidden md:block"/>
+        <div className="game-container">
+          {/* Header */}
+          <div className="flex items-center gap-3 px-4 pt-8 pb-3">
+            <button onClick={onBack} className="w-10 h-10 rounded-full flex items-center justify-center text-white"
+              style={{background:"rgba(255,255,255,0.1)"}}>←</button>
+            <h2 className="text-2xl font-black text-white flex-1">🗺️ Level Map</h2>
+            <div className="text-yellow-400 font-black">🪙{prog.coins.toLocaleString()}</div>
+          </div>
+          {/* Chapter tabs */}
+          <div className="flex gap-2 px-4 overflow-x-auto pb-3" style={{scrollbarWidth:"none"}}>
+            {CHAPTERS.map((c,i)=>{
+              const anyUnlocked = !!prog.unlocked[lvKey(c.id,0)]; // Lv1 always unlocked for all chapters
+              return(
+                <button key={i} onClick={()=>anyUnlocked&&setSelCh(i)}
+                  className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl border-2 transition-all ${selCh===i?"scale-105":""} ${anyUnlocked?"":"opacity-30 cursor-not-allowed"}`}
+                  style={{background:selCh===i?c.color+"44":"rgba(255,255,255,0.07)",borderColor:selCh===i?c.color:"rgba(255,255,255,0.15)"}}>
+                  <span style={{fontSize:18}}>{c.emoji}</span>
+                  <span className="text-white text-xs font-bold">{c.name}</span>
+                  <span className="text-yellow-400 text-xs">{(PREDEFINED[c.id]||[]).filter((_,li)=>getStars(c.id,li)>0).length}/{(PREDEFINED[c.id]||[]).length}</span>
+                </button>
+              );
+            })}
+          </div>
+          {/* Progress bar */}
+          <div className="mx-4 mb-3 px-4 py-3 rounded-2xl" style={{background:ch.color+"18",border:`1px solid ${ch.color}44`}}>
+            <div className="flex items-center gap-2">
+              <span style={{fontSize:24}}>{ch.emoji}</span>
+              <span className="text-white font-black">{ch.name}</span>
+              <span className="text-xs ml-auto" style={{color:ch.accent}}>
+                {(PREDEFINED[ch.id]||[]).filter((_,li)=>getStars(ch.id,li)>0).length}/{(PREDEFINED[ch.id]||[]).length} done
+              </span>
+            </div>
+            <div className="mt-2 h-2 rounded-full overflow-hidden" style={{background:"rgba(255,255,255,0.1)"}}>
+              <div className="h-full rounded-full transition-all" style={{
+                width:`${((PREDEFINED[ch.id]||[]).filter((_,li)=>getStars(ch.id,li)>0).length/(PREDEFINED[ch.id]||[{a:1}]).length)*100}%`,
+                background:ch.color
+              }}/>
+            </div>
+          </div>
+          {/* Level grid */}
+          <div className="flex-1 overflow-y-auto px-4 pb-8" style={{scrollbarWidth:"none"}}>
+            <div className="grid grid-cols-4 gap-3 md:grid-cols-5">
+              {(PREDEFINED[ch.id]||[]).map((spec,li)=>{
+                const unlk=isUnlocked(ch.id,li);
+                const s=getStars(ch.id,li);
+                const done=s>0, boss=!!spec.isBoss;
+                return(
+                  <button key={li} onClick={()=>{if(unlk){SFX.tap();onSelect(ch,li);}}}
+                    className={`relative flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 transition-all ${unlk?"active:scale-90 hover:scale-105":"cursor-not-allowed"}`}
+                    style={{
+                      background:!unlk?"rgba(255,255,255,0.04)":boss?"linear-gradient(135deg,#78350f,#b45309)":done?`${ch.color}33`:li===0&&!done?`linear-gradient(135deg,${ch.color}55,${ch.color}22)`:`${ch.color}18`,
+                      borderColor:!unlk?"rgba(255,255,255,0.08)":boss?"#fbbf24":done?ch.color:li===0?ch.color:`${ch.color}66`,
+                      boxShadow:boss&&unlk?`0 0 18px ${ch.color}55`:done?`0 0 8px ${ch.color}33`:li===0&&unlk&&!done?`0 0 14px ${ch.color}77,inset 0 0 12px ${ch.color}22`:""
+                    }}>
+                    {/* START badge for level 1 */}
+                    {li===0&&unlk&&!done&&(
+                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-white font-black"
+                        style={{fontSize:7,background:ch.color,letterSpacing:"0.05em",whiteSpace:"nowrap"}}>START</span>
+                    )}
+                    {/* Icon */}
+                    <span style={{fontSize:20}}>{!unlk?"🔒":boss?"👑":`${li+1}`}</span>
+                    {/* Stars */}
+                    <div className="flex gap-0.5">
+                      {[1,2,3].map(n=>(
+                        <span key={n} style={{fontSize:10,
+                          animation:done&&s>=n?`starPop 0.4s ease-out ${(n-1)*0.12}s both`:"none",
+                          filter:s>=n?"drop-shadow(0 0 4px #fbbf24)":"grayscale(1) opacity(0.25)"}}>⭐</span>
+                      ))}
+                    </div>
+                    <span className="text-white/50 text-xs">{spec.difficulty}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        <div className="game-sidebar-r hidden md:block"/>
+      </div>
+    </div>
+  );
+}
+
+function PlayScreen({prog,chapter,lvIdx,puzzle,selCells,found,foundH,timeLeft,status,combo,comboTxt,skin,isDaily,stars,mistakes,floatCoins,dragging,onDown,onEnter,onUp,onBoost,onRetry,onNext,onMenu,onMap}){
+  const pct=timeLeft/puzzle.time;
+  const fs=Math.max(12,22-puzzle.size);
+  const wonCoins=STAR_COINS[stars]||(puzzle.isBoss?150:100)+(isDaily?200:0);
+
+  const cellMap=useMemo(()=>{
+    const m={};
+    // 1. Found words — each unique vivid color
+    for(const [w,d] of Object.entries(found))
+      for(const [r,c] of d.cells)
+        m[`${r}-${c}`]={bg:d.color+"ee",text:"#fff",fw:"900",shadow:`0 0 10px ${d.color}99`};
+    // 2. Hidden found — amber
+    for(const hw of foundH){
+      const pl=puzzle.placed[hw];
+      if(pl) for(const [r,c] of pl)
+        m[`${r}-${c}`]={bg:"#fbbf24ee",text:"#1a1a1a",fw:"900",shadow:"0 0 8px #fbbf2477"};
+    }
+    // 3. Selection/hint — gold when hint (not dragging), skin color when dragging
+    for(const [r,c] of selCells){
+      const k=`${r}-${c}`;
+      if(!m[k]) m[k] = dragging
+        ? {bg:skin.sel+"ee", text:"#111",    fw:"900", shadow:`0 0 12px ${skin.sel}`}
+        : {bg:"#ffd700",     text:"#111",    fw:"900", shadow:"0 0 20px #ffd700, 0 0 6px #fff8"};
+    }
+    return m;
+  },[found,foundH,selCells,puzzle.placed,skin,dragging]);
+
+  const defStyle={bg:"rgba(255,255,255,0.09)",text:"#ffffff",fw:"700",shadow:"none"};
+
+  // RAF throttle for touch
+  const rafRef=useRef(null);
+  const lastCell=useRef("");
+
+  function handleTouchMove(e){
+    e.preventDefault();
+    if(rafRef.current) return;
+    rafRef.current=requestAnimationFrame(()=>{
+      rafRef.current=null;
+      const t=e.touches[0];
+      const el=document.elementFromPoint(t.clientX,t.clientY);
+      const r=el?.dataset?.r, c=el?.dataset?.c;
+      if(r===undefined) return;
+      const k=`${r}-${c}`;
+      if(k===lastCell.current) return;
+      lastCell.current=k;
+      onEnter(+r,+c);
+    });
+  }
+
+  const lastMouseCell=useRef("");
+  function handleMouseEnter(r,c){
+    const k=`${r}-${c}`;
+    if(k===lastMouseCell.current) return;
+    lastMouseCell.current=k;
+    onEnter(r,c);
+  }
+  function handleMouseDown(r,c){lastMouseCell.current=`${r}-${c}`;lastCell.current=`${r}-${c}`;onDown(r,c);}
+
+  return(
+    <div className="screen-fill" style={{background:`linear-gradient(160deg,${chapter.bg} 0%,#0a0a14 100%)`}}>
+      <style>{CSS}</style>
+
+      {/* Floating coins */}
+      <div className="absolute top-20 right-5 z-50 pointer-events-none flex flex-col gap-1 items-end">
+        {floatCoins.map(f=>(
+          <div key={f.id} className="text-yellow-400 font-black text-base" style={{animation:"coinUp 1.4s ease-out forwards"}}>+{f.amt}🪙</div>
+        ))}
+      </div>
+      {/* Combo */}
+      {comboTxt&&<div className="absolute top-1/3 left-1/2 -translate-x-1/2 z-50 pointer-events-none font-black text-2xl text-orange-400" style={{textShadow:"0 0 20px #f97316",animation:"popIn 0.35s ease-out"}}>{comboTxt}</div>}
+
+      <div className="game-root">
+        <div className="game-sidebar-l hidden md:block"/>
+        <div className="game-container">
+          {/* Header */}
+          <div className="flex items-center gap-2 px-3 pt-safe pb-1" style={{paddingTop:"max(12px,env(safe-area-inset-top,12px))"}}>
+            <button onClick={onMenu} className="w-9 h-9 rounded-full flex items-center justify-center text-white" style={{background:"rgba(255,255,255,0.1)"}}>←</button>
+            <div className="flex-1 min-w-0">
+              <div className="text-white font-black text-sm truncate">
+                {isDaily?"📅 Daily":puzzle.isBoss?"👑 Boss Battle":`${chapter.emoji} ${chapter.name} · Lv ${lvIdx+1}`}
+              </div>
+              <div className="text-white/40 text-xs">{puzzle.difficulty} · {puzzle.size}×{puzzle.size} · {mistakes>0?`❌${mistakes}`:""}</div>
+            </div>
+            {combo>1&&<div className="px-2 py-0.5 rounded-full font-black text-xs text-white shrink-0" style={{background:"#f97316"}}>🔥×{combo}</div>}
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full shrink-0" style={{background:"rgba(255,255,255,0.1)"}}>
+              <span style={{fontSize:12}}>🪙</span><span className="text-white font-black text-sm">{prog.coins.toLocaleString()}</span>
+            </div>
+          </div>
+
+          {/* Timer */}
+          <div className="mx-3 mb-1">
+            <div className="flex justify-between text-xs mb-1" style={{color:"rgba(255,255,255,0.45)"}}>
+              <span style={{animation:timeLeft<=10?"pulse 0.8s ease-in-out infinite":""}}>{timeLeft<=10?"⚠️":""} {timeLeft}s</span>
+              <span>{Object.keys(found).length}/{puzzle.visible.length} words</span>
+            </div>
+            <div className="rounded-full h-2.5 overflow-hidden" style={{background:"rgba(255,255,255,0.1)"}}>
+              <div className="h-full rounded-full transition-all duration-1000" style={{
+                width:`${pct*100}%`,
+                background:pct>0.5?chapter.color:pct>0.25?"#f97316":"#ef4444",
+                boxShadow:pct<=0.25?"0 0 8px #ef444488":""
+              }}/>
+            </div>
+          </div>
+
+          {/* Grid — bigger for 2-player visibility */}
+          <div className="grid-wrap" onMouseUp={onUp} onTouchEnd={onUp} onTouchMove={handleTouchMove} style={{touchAction:"none",flex:"1 1 0",minHeight:0}}>
+            <div style={{
+              display:"grid",gridTemplateColumns:`repeat(${puzzle.size},1fr)`,
+              gap:puzzle.size>=9?"2px":puzzle.size>=7?"3px":"4px",userSelect:"none",
+              width:"min(96vw, calc(100dvh - 230px))",maxWidth:"520px",aspectRatio:"1",
+              padding:puzzle.size>=8?"6px":"10px",borderRadius:"20px",
+              background:`${chapter.color}16`,
+              border:puzzle.isBoss?`2px solid ${chapter.color}`:`1px solid ${chapter.color}33`,
+              boxShadow:puzzle.isBoss?`0 0 40px ${chapter.color}55`:`0 0 20px ${chapter.color}22`,
+            }}>
+              {puzzle.grid.map((row,r)=>row.map((letter,c)=>{
+                const s=cellMap[`${r}-${c}`]||defStyle;
+                return(
+                  <div key={`${r}-${c}`} data-r={r} data-c={c}
+                    onMouseDown={()=>handleMouseDown(r,c)}
+                    onMouseEnter={()=>handleMouseEnter(r,c)}
+                    onTouchStart={e=>{e.preventDefault();handleMouseDown(r,c);}}
+                    className="flex items-center justify-center select-none cursor-pointer"
+                    style={{
+                      background:s.bg,color:s.text,fontWeight:s.fw,
+                      fontSize:fs,aspectRatio:"1",borderRadius:"6px",
+                      boxShadow:s.shadow,
+                      // Fast GPU-composited transition, not transition-all
+                      transition:"background 0.08s,box-shadow 0.08s",
+                    }}>
+                    {letter}
+                  </div>
+                );
+              }))}
+            </div>
+          </div>
+
+          {/* Word list + Boost row — compact combined panel */}
+          <div className="px-3 pb-1">
+            {/* Words */}
+            <div className="flex flex-wrap gap-1.5 justify-center mb-2">
+              {puzzle.visible.map(w=>{
+                const f=found[w];
+                return(
+                  <span key={w} className="px-2.5 py-1 rounded-full text-xs font-bold transition-all"
+                    style={{
+                      background:f?f.color+"33":"rgba(255,255,255,0.08)",
+                      color:f?f.color:"rgba(255,255,255,0.5)",
+                      border:`1.5px solid ${f?f.color:"rgba(255,255,255,0.12)"}`,
+                      textDecoration:f?"line-through":"none",
+                      boxShadow:f?`0 0 8px ${f.color}55`:"",
+                    }}>{w}</span>
+                );
+              })}
+              {foundH.map(w=>(
+                <span key={w} className="px-2 py-0.5 rounded-full text-xs font-bold"
+                  style={{background:"rgba(251,191,36,0.15)",color:"#fbbf24",border:"1px solid #fbbf2444"}}>🎁{w}</span>
+              ))}
+            </div>
+
+            {/* Boosts — card-style row */}
+            <div className="flex gap-2.5 justify-center">
+              {[
+                {type:"time",icon:"⏱",label:"+10s",cost:TIME_COST,disabled:prog.coins<TIME_COST,color:"#3b82f6"},
+                {type:"hint",icon:"💡",label:"Hint",cost:HINT_COST,disabled:prog.coins<HINT_COST,color:"#a855f7"},
+              ].map(({type,icon,label,cost,disabled,color})=>(
+                <button key={type}
+                  onClick={disabled?undefined:()=>onBoost(type)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-2xl font-bold text-sm"
+                  style={{
+                    background:disabled?`rgba(255,255,255,0.04)`:`${color}22`,
+                    border:`1.5px solid ${disabled?"rgba(255,255,255,0.06)":`${color}55`}`,
+                    color:disabled?"rgba(255,255,255,0.25)":color,
+                    cursor:disabled?"not-allowed":"pointer",
+                    transition:"background 0.2s,transform 0.1s",
+                    boxShadow:disabled?"none":`0 2px 12px ${color}33`,
+                  }}>
+                  <span style={{fontSize:16}}>{icon}</span>
+                  <span>{label}</span>
+                  <span style={{fontSize:11,opacity:disabled?0.5:0.8}}>🪙{cost}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Win overlay */}
+          {status==="won"&&(
+            <div className="absolute inset-0 flex items-center justify-center z-40" style={{background:"rgba(0,0,0,0.82)"}}>
+              <div className="rounded-3xl p-7 text-center mx-4 w-full max-w-sm"
+                style={{background:"linear-gradient(135deg,#1a0b2e,#2d1b4e)",border:"2px solid #7c3aed",boxShadow:"0 0 40px #7c3aed55",animation:"popIn 0.5s ease-out"}}>
+                <div style={{fontSize:52,animation:"float 2s ease-in-out infinite"}}>{puzzle.isBoss?"👑":"🏆"}</div>
+                <div className="text-white font-black text-2xl mt-1">{puzzle.isBoss?"Boss Cleared!":"Victory!"}</div>
+                {/* Animated stars */}
+                <div className="flex justify-center gap-4 my-4">
+                  {[1,2,3].map(n=>(
+                    <span key={n} style={{fontSize:40,
+                      animation:stars>=n?`starPop 0.5s ease-out ${(n-1)*0.16}s both`:"none",
+                      filter:stars>=n?"drop-shadow(0 0 12px #fbbf24)":"grayscale(1) opacity(0.2)"}}>⭐</span>
+                  ))}
+                </div>
+                <div className="text-xs mb-2" style={{color:stars===3?"#fbbf24":stars===2?"#94a3b8":"#78716c"}}>
+                  {stars===3?"✨ Perfect!":stars===2?"Great job!":"Keep practicing!"}
+                </div>
+                <div className="text-yellow-400 font-black text-2xl">+{wonCoins} 🪙</div>
+                {foundH.length>0&&<div className="text-yellow-300 text-xs mt-1">🎁 Hidden: {foundH.join(", ")}</div>}
+                <div className="flex gap-2 mt-5">
+                  <button onClick={onMap}  className="flex-1 py-2.5 rounded-2xl font-bold text-white text-sm" style={{background:"rgba(255,255,255,0.1)"}}>🗺️ Map</button>
+                  <button onClick={()=>onBoost("double")} className="flex-1 py-2.5 rounded-2xl font-bold text-white text-sm" style={{background:"#f97316"}}>📺 ×2</button>
+                  <button onClick={onNext} className="flex-1 py-2.5 rounded-2xl font-bold text-black text-sm" style={{background:"#fbbf24"}}>Next →</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Lose overlay */}
+          {status==="lost"&&(
+            <div className="absolute inset-0 flex items-center justify-center z-40" style={{background:"rgba(0,0,0,0.88)"}}>
+              <div className="rounded-3xl p-7 text-center mx-4 w-full max-w-sm"
+                style={{background:"linear-gradient(135deg,#0f172a,#1e293b)",border:"2px solid #ef4444",boxShadow:"0 0 30px #ef444455",animation:"shake 0.5s ease-out"}}>
+                <div style={{fontSize:52}}>💀</div>
+                <div className="text-2xl font-black text-red-400">Time's Up!</div>
+                <div className="text-white/50 mt-1 text-sm">Don't give up!</div>
+                <button onClick={()=>onBoost("time")} className="mt-4 w-full py-2.5 rounded-2xl font-bold text-white text-sm" style={{background:"#2563eb"}}>📺 Watch Ad +10s</button>
+                <div className="flex gap-2 mt-2">
+                  <button onClick={onMenu}  className="flex-1 py-2.5 rounded-2xl font-bold text-white text-sm" style={{background:"rgba(255,255,255,0.1)"}}>🏠 Menu</button>
+                  <button onClick={onRetry} className="flex-1 py-2.5 rounded-2xl font-bold text-white text-sm" style={{background:"#ef4444"}}>↺ Retry</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="game-sidebar-r hidden md:block"/>
+      </div>
+    </div>
+  );
+}
+
+function ShopScreen({prog,setProg,onBack}){
+  const [filter,setFilter]=useState("All");
+  const rarities=["All","Common","Rare","Epic","Legendary","Mythic"];
+  const filtered=filter==="All"?SKINS:SKINS.filter(s=>s.rarity===filter);
+  function buy(s){if(typeof s.price!=="number"||prog.coins<s.price||prog.ownedSkins.includes(s.id))return;setProg(p=>({...p,coins:p.coins-s.price,ownedSkins:[...p.ownedSkins,s.id]}));}
+  function equip(s){setProg(p=>({...p,activeSkin:s.id}));}
+  return(
+    <div className="screen-fill flex flex-col" style={{background:"linear-gradient(160deg,#1a0b2e,#0f0f1a)"}}>
+      <style>{CSS}</style>
+      <div className="flex items-center gap-3 px-4 pt-8 pb-3">
+        <button onClick={onBack} className="w-10 h-10 rounded-full flex items-center justify-center text-white" style={{background:"rgba(255,255,255,0.1)"}}>←</button>
+        <h2 className="text-2xl font-black text-white flex-1">🎨 Skin Shop</h2>
+        <div className="text-yellow-400 font-black">🪙{prog.coins.toLocaleString()}</div>
+      </div>
+      <div className="flex gap-2 px-4 overflow-x-auto pb-2" style={{scrollbarWidth:"none"}}>
+        {rarities.map(r=>(
+          <button key={r} onClick={()=>setFilter(r)} className="px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap"
+            style={{background:filter===r?"linear-gradient(135deg,#7c3aed,#a855f7)":"rgba(255,255,255,0.08)",color:"#fff"}}>
+            {r}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 pb-6 grid grid-cols-2 gap-3 content-start md:grid-cols-3" style={{scrollbarWidth:"none"}}>
+        {filtered.map(s=>{
+          const owned=prog.ownedSkins.includes(s.id),active=prog.activeSkin===s.id;
+          const rc=RARITY_CLR[s.rarity]||"#fff",isPrem=typeof s.price!=="number";
+          return(
+            <div key={s.id} className="rounded-2xl p-3 flex flex-col gap-2" style={{background:"rgba(255,255,255,0.06)",border:`1.5px solid ${rc}33`}}>
+              <div className="rounded-xl h-12 flex items-center justify-center gap-1" style={{background:s.sel+"22"}}>
+                {"WORD".split("").map((l,i)=>(
+                  <div key={i} className="w-6 h-6 rounded-md flex items-center justify-center font-black text-xs"
+                    style={{background:i===1||i===2?s.sel+"cc":"transparent",color:s.letter}}>{l}</div>
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-white font-bold text-sm flex-1 truncate">{s.name}</span>
+                <span className="text-xs px-1 py-0.5 rounded-full font-bold" style={{background:rc+"22",color:rc}}>{s.rarity[0]}</span>
+              </div>
+              <button onClick={()=>owned?equip(s):(!isPrem&&buy(s))} className="py-1.5 rounded-xl text-xs font-bold"
+                style={{background:active?"rgba(251,191,36,0.15)":owned?"rgba(34,197,94,0.15)":isPrem?"rgba(236,72,153,0.15)":"rgba(124,58,237,0.4)",
+                  color:active?"#fbbf24":owned?"#4ade80":isPrem?"#f9a8d4":"#fff"}}>
+                {active?"✓ Active":owned?"Equip":isPrem?`💎${s.price}`:`🪙${s.price.toLocaleString()}`}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BoostBtn({children, onClick, disabled, style={}}){
+  return(
+    <button onClick={disabled ? undefined : onClick}
+      className="flex items-center gap-1 px-3 py-1.5 rounded-full font-bold text-white text-xs active:scale-95 transition-opacity"
+      style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)",cursor:disabled?"not-allowed":"pointer",...style}}>
+      {children}
+    </button>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  ROOT — handles player registration then loads the game
+// ═══════════════════════════════════════════════════════════════
+function Root() {
+  const [player, setPlayer] = React.useState(() => getCurrentPlayer());
+  const [showLb, setShowLb] = React.useState(false);
+
+  // Check URL hash for leaderboard deep link
+  React.useEffect(() => {
+    if (window.location.hash === '#leaderboard') setShowLb(true);
+  }, []);
+
+  if (!player) {
+    return <PlayerNameScreen onEnter={name => setPlayer(name)} />;
+  }
+
+  if (showLb) {
+    return <LeaderboardScreen currentPlayer={player} onClose={() => setShowLb(false)} />;
+  }
+
+  return (
+    <div style={{position:'relative'}}>
+      {/* Leaderboard FAB button */}
+      <button
+        onClick={() => setShowLb(true)}
+        style={{
+          position:'fixed', bottom:'20px', left:'20px', zIndex:9999,
+          width:'52px', height:'52px', borderRadius:'50%',
+          background:'linear-gradient(135deg,#7c3aed,#db2777)',
+          border:'none', cursor:'pointer', fontSize:'22px',
+          boxShadow:'0 4px 20px rgba(124,58,237,0.5)',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          transition:'transform 0.2s'
+        }}
+        onMouseEnter={e => e.currentTarget.style.transform='scale(1.1)'}
+        onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}
+        title="Leaderboard"
+      >🏆</button>
+      <App />
+    </div>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<Root />);
+  </script>
+</body>
+</html>
